@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>제안서 v2 — concept-viz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-main: #0f172a; --bg-panel: #1e293b; --bg-subtle: #111827;
+    --text-primary: #e8ecf2; --text-body: #cbd5e1; --text-secondary: #94a3b8;
+    --text-dim: #64748b; --border: #2d3a52; --accent-purple: #a78bfa;
+    --accent-gold: #fbbf24; --accent-green: #34d399;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-main); color: var(--text-body);
+    font-family: 'Inter', 'Noto Serif KR', -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.78; word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  nav.top {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; gap: 18px;
+    font-size: 13px;
+  }
+  nav.top .brand { font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
+  nav.top .brand .dot { color: var(--accent-purple); }
+  nav.top .breadcrumb { color: var(--text-dim); }
+  nav.top .spacer { flex: 1; }
+  nav.top a { color: var(--text-secondary); text-decoration: none; }
+  nav.top a:hover { color: var(--text-primary); }
+
+  main.reader { max-width: 780px; margin: 0 auto; padding: 56px 28px 120px; }
+
+  .reader h1 {
+    font-size: clamp(28px, 3.5vw, 36px); font-weight: 700;
+    letter-spacing: -0.025em; color: var(--text-primary);
+    margin: 0 0 24px; line-height: 1.2;
+  }
+  .reader h2 {
+    font-size: 24px; font-weight: 700; color: var(--text-primary);
+    margin: 44px 0 12px; letter-spacing: -0.02em;
+    padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .reader h3 {
+    font-size: 19px; font-weight: 600; color: var(--text-primary);
+    margin: 30px 0 10px; letter-spacing: -0.015em;
+  }
+  .reader h4 {
+    font-size: 16px; font-weight: 600; color: var(--text-primary);
+    margin: 22px 0 8px;
+  }
+  .reader h5, .reader h6 { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin: 18px 0 6px; }
+  .reader p { margin: 14px 0; color: var(--text-body); }
+  .reader a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(167, 139, 250, 0.4); }
+  .reader a:hover { border-bottom-color: var(--accent-purple); }
+  .reader ul, .reader ol { margin: 14px 0 14px 28px; }
+  .reader li { margin: 6px 0; color: var(--text-body); }
+  .reader li > ul, .reader li > ol { margin: 6px 0 6px 20px; }
+  .reader strong { color: var(--text-primary); font-weight: 600; }
+  .reader em { color: var(--accent-gold); font-style: normal; }
+
+  .reader code {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.88em; background: rgba(148, 163, 184, 0.12);
+    padding: 1px 6px; border-radius: 3px; color: var(--text-primary);
+  }
+  .reader pre {
+    background: var(--bg-subtle); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 18px; overflow-x: auto;
+    margin: 18px 0; font-size: 13.5px; line-height: 1.6;
+  }
+  .reader pre code { background: none; padding: 0; font-size: inherit; }
+
+  .reader blockquote {
+    border-left: 3px solid var(--accent-purple);
+    padding: 10px 20px; margin: 18px 0;
+    color: var(--text-secondary); background: rgba(167, 139, 250, 0.04);
+    border-radius: 4px;
+  }
+  .reader blockquote p { margin: 6px 0; }
+
+  .reader table {
+    border-collapse: collapse; margin: 20px 0;
+    font-size: 14px; width: 100%;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .reader th, .reader td {
+    border: 1px solid var(--border); padding: 10px 14px;
+    text-align: left; vertical-align: top;
+  }
+  .reader th {
+    background: var(--bg-panel); color: var(--text-primary);
+    font-weight: 600; font-size: 13px;
+  }
+  .reader td { color: var(--text-body); }
+
+  .reader img {
+    max-width: 100%; height: auto; display: block;
+    margin: 24px auto; border-radius: 8px; border: 1px solid var(--border);
+  }
+  .reader figure { margin: 24px 0; }
+  .reader figcaption { text-align: center; color: var(--text-dim); font-size: 13px; margin-top: 8px; }
+
+  .reader hr { border: none; height: 1px; background: var(--border); margin: 44px 0; }
+
+  .loading, .err {
+    padding: 80px 20px; text-align: center; color: var(--text-dim);
+    font-size: 14px;
+  }
+  .err { color: var(--accent-gold); }
+
+  /* Read progress bar */
+  .progress-bar {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent-purple), var(--accent-gold));
+    z-index: 100; width: 0%; transition: width 0.1s ease;
+  }
+
+  @media (max-width: 640px) {
+    main.reader { padding: 32px 20px 80px; }
+    .reader h2 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress-bar"></div>
+
+<nav class="top">
+  <span class="brand"><span class="dot">◆</span> concept-viz</span>
+  <span class="breadcrumb">/ docs / 제안서</span>
+  <span class="spacer"></span>
+  <a href="../index.html">← 홈</a>
+</nav>
+
+<main class="reader" id="content">
+  <div class="loading">문서를 불러오는 중…</div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.1/marked.min.js"></script>
+<script>
+  // Derive MD source from HTML filename
+  const htmlName = location.pathname.split('/').pop() || 'proposal_v2_visualization_focus.html';
+  const mdName = htmlName.replace(/\.html$/, '.md');
+
+  fetch(mdName)
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(md => {
+      marked.setOptions({
+        gfm: true,
+        breaks: false,
+        headerIds: true,
+        mangle: false,
+      });
+      const html = marked.parse(md);
+      document.getElementById('content').innerHTML = html;
+
+      // Set document title from first H1 if present
+      const h1 = document.querySelector('main.reader h1');
+      if (h1) {
+        const t = h1.textContent.trim().split('\n')[0].slice(0, 80);
+        document.title = t + ' — concept-viz';
+      }
+    })
+    .catch(err => {
+      document.getElementById('content').innerHTML =
+        '<div class="err">문서 로드 실패 (' + err.message + ')<br><br>원본: <a href="' + mdName + '">' + mdName + '</a></div>';
+    });
+
+  // Reading progress
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    const pct = h.scrollHeight > h.clientHeight
+      ? (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100 : 0;
+    bar.style.width = pct + '%';
+  }, { passive: true });
+</script>
+
+</body>
+</html>

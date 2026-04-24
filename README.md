@@ -49,7 +49,7 @@ For different audiences:
 
 - **First-time viewer** → start at `index.html`
 - **Want to understand project in 10 min** → `demos/demo-tour.html` (8-step guided tour)
-- **Want the full argument** → `docs/proposal_v2_visualization_focus.md`
+- **Want the full argument** → `docs/proposal_v2_visualization_focus.html`
 - **Just want the core demo** → `demos/demo-integrated.html`
 - **Need a diagram for slides / external docs** → `public/visual-abstract.svg`
 
@@ -69,7 +69,7 @@ All previously built prototypes now live under `demos/`:
 | `demo-feasibility.html` | Threshold slider + attrition waterfall |
 | `demo-child-histogram.html` | OMOP child count distribution |
 
-These are linked from `docs/proposal_v2_visualization_focus.md` (relative path `../demos/*`).
+These are linked from `docs/proposal_v2_visualization_focus.html` (relative path `../demos/*`).
 
 ## Development
 
