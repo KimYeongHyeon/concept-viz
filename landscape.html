@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지금은 이렇게 합니다 — concept-viz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-main: #0f172a; --bg-panel: #1e293b; --bg-subtle: #111827; --bg-read: #151e33;
+    --text-primary: #e8ecf2; --text-body: #cbd5e1; --text-secondary: #94a3b8;
+    --text-dim: #64748b; --border: #2d3a52; --border-strong: #475569;
+    --accent-purple: #a78bfa; --accent-gold: #fbbf24;
+    --accent-green: #34d399; --accent-red: #f87171; --accent-blue: #60a5fa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-main); color: var(--text-body);
+    font-family: 'Inter', 'Noto Serif KR', -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.75; word-break: keep-all; overflow-wrap: break-word;
+  }
+  a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(167, 139, 250, 0.4); }
+  a:hover { border-bottom-color: var(--accent-purple); }
+
+  nav.top {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; gap: 18px; font-size: 13px;
+  }
+  nav.top .brand { font-weight: 700; color: var(--text-primary); }
+  nav.top .brand .dot { color: var(--accent-purple); }
+  nav.top .breadcrumb { color: var(--text-dim); }
+  nav.top .spacer { flex: 1; }
+  nav.top a { color: var(--text-secondary); border-bottom: none; }
+  nav.top a:hover { color: var(--text-primary); }
+
+  main { max-width: 980px; margin: 0 auto; padding: 56px 28px 120px; }
+
+  header.hero { margin-bottom: 48px; }
+  header.hero .kicker {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent-purple); margin-bottom: 12px;
+  }
+  header.hero h1 {
+    font-size: clamp(28px, 4vw, 40px); font-weight: 700;
+    letter-spacing: -0.025em; color: var(--text-primary);
+    margin-bottom: 16px; line-height: 1.2;
+  }
+  header.hero .lead { font-size: 17px; color: var(--text-secondary); max-width: 760px; line-height: 1.7; }
+
+  /* Step block */
+  .step {
+    margin: 56px 0;
+    scroll-margin-top: 40px;
+  }
+  .step-header {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 12px;
+  }
+  .step-num {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--bg-panel);
+    border: 2px solid var(--accent-purple);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; color: var(--accent-purple);
+    flex-shrink: 0;
+  }
+  .step h2 {
+    font-size: 24px; font-weight: 700;
+    letter-spacing: -0.02em; color: var(--text-primary);
+  }
+  .step .step-sub {
+    margin-left: 50px; margin-bottom: 20px;
+    color: var(--text-secondary); font-size: 15px;
+  }
+
+  .shot-wrap {
+    margin: 24px 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px; overflow: hidden;
+    background: var(--bg-subtle);
+  }
+  .shot-wrap .window-bar {
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+  }
+  .shot-wrap .window-bar .dots { display: flex; gap: 5px; }
+  .shot-wrap .window-bar .dots span {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--bg-card, #334155);
+  }
+  .shot-wrap .window-bar .dots span:nth-child(1) { background: #ef4444; opacity: 0.7; }
+  .shot-wrap .window-bar .dots span:nth-child(2) { background: #f59e0b; opacity: 0.7; }
+  .shot-wrap .window-bar .dots span:nth-child(3) { background: #22c55e; opacity: 0.7; }
+  .shot-wrap .window-bar .url { flex: 1; text-align: center; font-size: 11px; }
+  .shot-wrap img {
+    display: block; width: 100%; height: auto;
+    background: #fff;
+  }
+
+  /* Pain point callouts */
+  .pain {
+    margin: 18px 0;
+    padding: 16px 20px;
+    background: rgba(248, 113, 113, 0.06);
+    border-left: 3px solid var(--accent-red);
+    border-radius: 6px;
+  }
+  .pain-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent-red);
+    margin-bottom: 8px; padding: 2px 8px;
+    background: rgba(248, 113, 113, 0.1); border-radius: 3px;
+    display: inline-block;
+  }
+  .pain ul { margin: 0 0 0 20px; padding: 0; }
+  .pain li { margin: 6px 0; color: var(--text-body); font-size: 15px; }
+  .pain li strong { color: var(--text-primary); }
+  .pain p { font-size: 15px; color: var(--text-body); }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin: 24px 0;
+  }
+  .stat-card {
+    padding: 18px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-align: center;
+  }
+  .stat-card .num {
+    font-size: 28px; font-weight: 700; color: var(--accent-gold);
+    line-height: 1; margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .stat-card .lbl {
+    font-size: 12px; color: var(--text-secondary);
+  }
+
+  /* Summary / CTA to our tool */
+  .summary {
+    margin-top: 72px; padding: 36px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(167, 139, 250, 0.08), rgba(251, 191, 36, 0.06));
+    border: 1px solid rgba(167, 139, 250, 0.3);
+  }
+  .summary h2 {
+    font-size: 22px; font-weight: 700;
+    color: var(--text-primary); margin-bottom: 12px; letter-spacing: -0.02em;
+  }
+  .summary p { font-size: 15px; color: var(--text-body); margin: 10px 0; }
+  .summary .cta-row {
+    display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap;
+  }
+  .summary .btn {
+    padding: 10px 18px; border-radius: 8px;
+    font-size: 14px; font-weight: 500;
+    border-bottom: none;
+  }
+  .summary .btn.primary { background: var(--accent-purple); color: #0f172a; }
+  .summary .btn.secondary { background: var(--bg-panel); color: var(--text-primary); border: 1px solid var(--border-strong); }
+
+  hr.divider {
+    border: none; height: 1px; background: var(--border); margin: 48px 0;
+  }
+
+  @media (max-width: 640px) {
+    main { padding: 32px 20px 80px; }
+    .step h2 { font-size: 20px; }
+    .stat-card .num { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <span class="brand"><span class="dot">◆</span> concept-viz</span>
+  <span class="breadcrumb">/ 지금은 이렇게 합니다</span>
+  <span class="spacer"></span>
+  <a href="index.html">← 홈</a>
+</nav>
+
+<main>
+
+<header class="hero">
+  <div class="kicker">Current Workflow · Athena 기반 수동 매핑</div>
+  <h1>지금은 의료진이 <span style="color: var(--accent-gold)">이렇게 매핑</span>하고 있습니다</h1>
+  <p class="lead">
+    임상시험 eligibility criteria를 OMOP concept로 매핑하려면 오늘도 많은 의료진이 OHDSI의
+    공식 용어 브라우저 <a href="https://athena.ohdsi.org/" target="_blank" rel="noopener">Athena</a>를 사용합니다.
+    2016년에 만들어진 이 도구는 <strong style="color: var(--text-primary)">AI 매핑이 존재하기 전에 설계</strong>되었습니다.
+    아래는 "제2형 당뇨병" 한 줄을 매핑하는 실제 화면입니다.
+  </p>
+</header>
+
+<!-- Step 1 -->
+<section class="step">
+  <div class="step-header">
+    <div class="step-num">1</div>
+    <h2>빈 검색창 앞에서 시작합니다</h2>
+  </div>
+  <p class="step-sub">
+    프로토콜의 "Type 2 diabetes mellitus" 한 줄을 어떤 키워드로 검색할지 먼저 결정합니다.
+    영어로? 한글로? 동의어(DM type 2)까지? 약어(T2DM)까지?
+  </p>
+  <div class="shot-wrap">
+    <div class="window-bar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="url">https://athena.ohdsi.org/search-terms/terms</div>
+    </div>
+    <img src="public/landscape/athena-01-landing.png" alt="Athena 검색 시작 화면">
+  </div>
+  <div class="pain">
+    <div class="pain-label">⚠ 문제</div>
+    <p>시작점이 빈 검색창 하나. 현재 어떤 vocabulary(SNOMED? RxNorm? ICD?)에 어떤 concept가 존재하는지 <strong>사전 지식 없이</strong>는 감이 오지 않습니다.</p>
+  </div>
+</section>
+
+<!-- Step 2 -->
+<section class="step">
+  <div class="step-header">
+    <div class="step-num">2</div>
+    <h2>검색하면 수백 개의 후보가 쏟아집니다</h2>
+  </div>
+  <p class="step-sub">
+    "type 2 diabetes" 한 번에 <strong style="color: var(--accent-gold)">359개의 concept</strong>가 나옵니다. 이 중 어느 것들을 포함할지 판단해야 합니다.
+  </p>
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="num">359</div>
+      <div class="lbl">검색 결과 (T2DM 한 criterion)</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">12~18</div>
+      <div class="lbl">한 연구의 criteria 수 (LEADER/PLATO/ARISTOTLE)</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">~수천 번</div>
+      <div class="lbl">클릭·비교 필요 (수동 매핑 기준)</div>
+    </div>
+  </div>
+  <div class="shot-wrap">
+    <div class="window-bar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="url">athena.ohdsi.org/search-terms/terms?query=type+2+diabetes</div>
+    </div>
+    <img src="public/landscape/athena-02-search-results.png" alt="Athena 'type 2 diabetes' 검색 결과 359개">
+  </div>
+  <div class="pain">
+    <div class="pain-label">⚠ 문제</div>
+    <ul>
+      <li><strong>한 번에 하나만</strong> 클릭해서 자세히 볼 수 있음 — 나란히 비교 불가</li>
+      <li>결과에 <strong>실제 환자 수</strong>가 안 나옴 — 연구 데이터에 이 concept가 몇 명 있는지는 별도 쿼리 필요</li>
+      <li>"이 중 임상적으로 적절한 것"을 판단할 때 <strong>프로토콜 원문 맥락</strong>이 옆에 없음 (다른 탭에 있는 PDF를 계속 오가며 확인)</li>
+      <li>판단 결과를 저장할 곳이 없음 — 별도 엑셀에 복사</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Step 3 -->
+<section class="step">
+  <div class="step-header">
+    <div class="step-num">3</div>
+    <h2>하나를 클릭하면 상세 정보</h2>
+  </div>
+  <p class="step-sub">
+    concept ID, 도메인, vocabulary 출처, 관계 정보가 나옵니다. 판단에 필요한 자료의 일부입니다.
+  </p>
+  <div class="shot-wrap">
+    <div class="window-bar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="url">athena.ohdsi.org/search-terms/terms/201826</div>
+    </div>
+    <img src="public/landscape/athena-03-concept-detail.png" alt="Athena concept 201826 (Type 2 diabetes mellitus) 상세 페이지">
+  </div>
+  <div class="pain">
+    <div class="pain-label">⚠ 여전히 없는 것</div>
+    <ul>
+      <li><strong>실제 환자 수·분포</strong> — 이 concept가 우리 CDM에 몇 명 있나?</li>
+      <li><strong>동일 기준의 다른 후보들과의 차이</strong> — 358개 중 왜 이것을 선택/제외해야 하나?</li>
+      <li><strong>매핑 이력</strong> — 지난번 연구에선 이 concept를 어떻게 다뤘나?</li>
+      <li><strong>AI의 추론 근거</strong> — (AI 매핑을 쓴다 해도) 왜 이걸 추천했는지 맥락</li>
+    </ul>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Step 4: reality -->
+<section class="step">
+  <div class="step-header">
+    <div class="step-num" style="border-color: var(--accent-red); color: var(--accent-red); background: rgba(248, 113, 113, 0.1);">×</div>
+    <h2>이걸 12~18번 반복해야 합니다</h2>
+  </div>
+  <p class="step-sub">
+    한 연구의 모든 criteria에 대해 이 과정을 반복. 추가로 동의어, 하위 concept, 관련 약물까지 따로 검색하면
+    실제 소요 시간은 <strong style="color: var(--text-primary)">수 시간에서 수 일</strong>. 완료해도 매핑이 과도하게 엄격한지·느슨한지를
+    <strong style="color: var(--accent-gold)">코호트 생성 단계에 가서야</strong> 알 수 있습니다.
+  </p>
+  <div class="pain">
+    <div class="pain-label">⚠ 누적된 문제</div>
+    <ul>
+      <li>판단 일관성이 떨어짐 — 1번째 criterion과 10번째 criterion에서 같은 기준을 적용했는지 기억에 의존</li>
+      <li>다른 연구자의 재현 불가 — 어떤 concept를 왜 포함·제외했는지 기록이 엑셀 메모뿐</li>
+      <li>Feasibility가 뒤늦게 드러남 — 전부 끝내고 cohort 생성했더니 환자 0명 → 처음부터 다시</li>
+    </ul>
+  </div>
+</section>
+
+<!-- Summary CTA -->
+<section class="summary">
+  <h2>이 프로젝트가 바꾸려는 것</h2>
+  <p>
+    AI (Artemis)가 후보 concept를 자동으로 추천하고, <strong style="color: var(--text-primary)">concept-viz</strong>가
+    그 추천을 시각적으로 검토할 수 있게 합니다:
+  </p>
+  <ul style="margin: 14px 0 14px 24px;">
+    <li>한 화면에서 <strong style="color: var(--text-primary)">여러 후보 동시 비교</strong></li>
+    <li>계층 구조에서 <strong style="color: var(--text-primary)">형제·자녀 concept 자동 전개</strong> (빠진 것 즉시 발견)</li>
+    <li>concept 선택·교체 시 <strong style="color: var(--text-primary)">환자 수 실시간 갱신</strong></li>
+    <li>매핑 이력 자동 기록 (판단 근거와 함께)</li>
+  </ul>
+  <p>개념이 궁금하시면 안내서를, 작동을 보시려면 데모를 여세요.</p>
+  <div class="cta-row">
+    <a href="primer.html" class="btn primary">안내서 읽기 (20분) →</a>
+    <a href="demos/demo-integrated.html" class="btn secondary">핵심 데모 (30초)</a>
+    <a href="demos/demo-tour.html" class="btn secondary">8단계 투어</a>
+  </div>
+</section>
+
+</main>
+
+</body>
+</html>
