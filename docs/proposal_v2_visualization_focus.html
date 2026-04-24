@@ -6,7 +6,7 @@
 <title>제안서 v2 — concept-viz</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Nanum+Gothic+Coding:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg-main: #0f172a; --bg-panel: #1e293b; --bg-subtle: #111827;
@@ -73,15 +73,11 @@
   .reader pre {
     background: var(--bg-subtle); border: 1px solid var(--border);
     border-radius: 8px; padding: 16px 18px; overflow-x: auto;
-    margin: 18px 0; font-size: 13px; line-height: 1.45;
-    font-family: 'Nanum Gothic Coding', 'D2Coding', 'Noto Sans Mono CJK KR', 'Menlo', 'Consolas', ui-monospace, monospace;
-    white-space: pre;
-    tab-size: 2;
+    margin: 18px 0; font-size: 13.5px; line-height: 1.6;
   }
-  .reader pre code {
-    background: none; padding: 0;
-    font-size: inherit; font-family: inherit; white-space: inherit;
-  }
+  .reader pre code { background: none; padding: 0; font-size: inherit; }
+  .reader pre, .reader pre code { font-family: 'D2Coding','Nanum Gothic Coding','Menlo','Consolas','SF Mono',ui-monospace,monospace; word-break: normal; white-space: pre; tab-size: 2; }
+
 
   .reader blockquote {
     border-left: 3px solid var(--accent-purple);
