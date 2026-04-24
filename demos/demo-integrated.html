@@ -1,0 +1,1727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integrated Mapping Review + Feasibility Check</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  :root {
+    --bg-main: #0f172a;
+    --bg-panel: #1e293b;
+    --bg-card: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border: #475569;
+    --color-gold: #f59e0b;
+    --color-purple: #8b5cf6;
+    --color-gray: #64748b;
+    --color-green: #22c55e;
+    --color-blue: #3b82f6;
+    --color-red: #ef4444;
+    --color-yellow: #f59e0b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* Header */
+  header {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  header a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+  }
+
+  header a:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+  }
+
+  header h1 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  header .badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    background: rgba(139, 92, 246, 0.15);
+    color: var(--color-purple);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  /* Main layout */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Left panel - Criteria list */
+  .panel-left {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .criteria-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 6px;
+  }
+
+  .criteria-card {
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    background: var(--bg-card);
+  }
+
+  .criteria-card:hover {
+    border-color: var(--color-purple);
+    background: rgba(139, 92, 246, 0.05);
+  }
+
+  .criteria-card.active {
+    border-color: var(--color-purple);
+    background: rgba(139, 92, 246, 0.1);
+  }
+
+  .criteria-card-top {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 4px;
+  }
+
+  .badge-incl {
+    font-size: 9px;
+    padding: 1px 5px;
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 3px;
+    font-weight: 600;
+  }
+
+  .badge-excl {
+    font-size: 9px;
+    padding: 1px 5px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 3px;
+    font-weight: 600;
+  }
+
+  .badge-domain {
+    font-size: 9px;
+    padding: 1px 5px;
+    background: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 3px;
+  }
+
+  .criteria-text {
+    font-size: 11px;
+    color: var(--text-primary);
+    font-weight: 500;
+    line-height: 1.3;
+  }
+
+  .criteria-concept {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .criteria-concept .concept-summary {
+    font-size: 10px;
+    color: var(--color-gold);
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+  }
+
+  /* Selected concept names list under card */
+  .selected-concepts-list {
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .selected-concept-item {
+    font-size: 9px;
+    color: var(--color-green);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .selected-concept-item::before {
+    content: '✓';
+    flex-shrink: 0;
+  }
+
+  .criteria-count {
+    font-size: 10px;
+    color: var(--color-green);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .has-slider-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-gold);
+    flex-shrink: 0;
+  }
+
+  .has-tree-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-purple);
+    flex-shrink: 0;
+  }
+
+  /* Center panel - Tree */
+  .panel-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-main);
+  }
+
+  .tree-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #tree-svg {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+  #tree-svg:active {
+    cursor: grabbing;
+  }
+
+  .slider-area {
+    border-top: 1px solid var(--border);
+    padding: 10px 16px;
+    background: var(--bg-panel);
+    flex-shrink: 0;
+    display: none;
+  }
+
+  .slider-area.visible {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .slider-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    min-width: 90px;
+  }
+
+  .slider-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-gold);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-gold);
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+
+  /* Right panel - Funnel */
+  .panel-right {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .funnel-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+  }
+
+  .funnel-step {
+    margin-bottom: 8px;
+    position: relative;
+    transition: opacity 0.3s;
+  }
+
+  .funnel-step-label {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .funnel-step-label span:first-child {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+  }
+
+  .funnel-step-delta {
+    font-size: 9px;
+    color: var(--color-red);
+  }
+
+  .funnel-bar-track {
+    height: 18px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .funnel-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+  }
+
+  .funnel-bar-count {
+    font-size: 10px;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+  }
+
+  .funnel-final {
+    border-top: 1px solid var(--border);
+    padding: 12px 14px;
+    flex-shrink: 0;
+  }
+
+  .funnel-final-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+
+  .funnel-final-count {
+    font-size: 26px;
+    font-weight: 700;
+    transition: color 0.3s;
+  }
+
+  .funnel-final-count.green { color: var(--color-green); }
+  .funnel-final-count.yellow { color: var(--color-yellow); }
+  .funnel-final-count.red { color: var(--color-red); }
+
+  .funnel-final-status {
+    font-size: 11px;
+    margin-top: 3px;
+    transition: color 0.3s;
+  }
+
+  /* Sensitivity bars */
+  .sensitivity-section {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .sensitivity-label {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .sens-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+
+  .sens-name {
+    color: var(--text-secondary);
+    width: 70px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sens-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .sens-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--color-purple);
+    transition: width 0.3s ease;
+  }
+
+  .sens-count {
+    color: var(--text-secondary);
+    width: 45px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* D3 Tree styles */
+  .tree-link {
+    fill: none;
+    stroke: #475569;
+    stroke-width: 1.5;
+  }
+
+  .tree-node circle {
+    cursor: pointer;
+    transition: r 0.2s, filter 0.2s;
+  }
+
+  .tree-node text {
+    font-family: 'Inter', -apple-system, sans-serif;
+    pointer-events: none;
+  }
+
+  .tree-node .concept-id {
+    font-family: monospace;
+  }
+
+  .tree-node .freq-badge {
+    font-size: 9px;
+  }
+
+  /* Node state colors — multi-select model */
+
+  /* Selected (in concept set) — green fill + checkmark */
+  .node-selected circle {
+    fill: #22c55e;
+    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.7));
+  }
+
+  /* AI-recommended (mapped-default) ring — always visible even when deselected */
+  .node-mapped-default circle {
+    fill: #8b5cf6;
+    stroke: #f59e0b;
+    stroke-width: 3;
+  }
+
+  /* AI-recommended AND selected */
+  .node-mapped-default.node-selected circle {
+    fill: #22c55e;
+    stroke: #f59e0b;
+    stroke-width: 3;
+    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.7));
+  }
+
+  /* Discoverable (available, not selected) */
+  .node-discoverable circle {
+    fill: #8b5cf6;
+  }
+
+  .node-discoverable:hover circle {
+    fill: #a78bfa;
+    filter: drop-shadow(0 0 4px rgba(139, 92, 246, 0.5));
+  }
+
+  /* Context (structural/parent, not clickable) */
+  .node-context circle {
+    fill: #64748b;
+    opacity: 0.6;
+  }
+
+  /* Plus icon for discoverable (hover) */
+  .plus-icon {
+    font-size: 11px;
+    fill: #a78bfa;
+    font-weight: 700;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+
+  .node-discoverable:hover .plus-icon {
+    opacity: 1;
+  }
+
+  /* Checkmark overlay for selected nodes */
+  .check-icon {
+    font-size: 10px;
+    fill: white;
+    font-weight: 700;
+    pointer-events: none;
+  }
+
+  /* No-tree message */
+  .no-tree-msg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-secondary);
+    gap: 8px;
+  }
+
+  .no-tree-msg .icon {
+    font-size: 28px;
+    opacity: 0.4;
+  }
+
+  .no-tree-msg p {
+    font-size: 13px;
+    text-align: center;
+    max-width: 200px;
+    line-height: 1.5;
+  }
+
+  /* Scrollbar styles */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: #1e293b;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 11px;
+    color: var(--text-primary);
+    pointer-events: none;
+    z-index: 100;
+    max-width: 200px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    display: none;
+  }
+
+  .tooltip .t-name { font-weight: 600; margin-bottom: 2px; }
+  .tooltip .t-id { font-family: monospace; font-size: 10px; color: var(--text-secondary); }
+  .tooltip .t-freq { font-size: 10px; color: var(--color-green); margin-top: 4px; }
+  .tooltip .t-action { font-size: 10px; color: var(--color-purple); margin-top: 3px; font-style: italic; }
+  .tooltip .t-status { font-size: 10px; color: var(--color-green); margin-top: 3px; font-style: italic; }
+
+  /* Funnel animation */
+  @keyframes pulse-update {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 1; }
+  }
+
+  .funnel-updating {
+    animation: pulse-update 0.3s ease;
+  }
+
+  /* Tree transition overlay */
+  .tree-fade-overlay {
+    position: absolute;
+    inset: 0;
+    background: var(--bg-main);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 2;
+    transition: opacity 0.2s ease;
+  }
+  .tree-fade-overlay.fading-out { opacity: 1; }
+
+  /* Criteria card active slide-in highlight */
+  @keyframes border-sweep {
+    0% { background-position: -100% 0; }
+    100% { background-position: 100% 0; }
+  }
+
+  .criteria-card.active-animate {
+    animation: border-sweep 0.35s ease forwards;
+    background-image: linear-gradient(90deg,
+      rgba(139,92,246,0.0) 0%,
+      rgba(139,92,246,0.18) 40%,
+      rgba(139,92,246,0.10) 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  /* Node ripple keyframes */
+  @keyframes ripple-expand {
+    0%   { r: 0; opacity: 0.7; }
+    100% { r: 28; opacity: 0; }
+  }
+
+  /* Funnel bar entry animation */
+  @keyframes bar-enter {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .funnel-step-animated {
+    animation: bar-enter 0.25s ease both;
+  }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: #334155;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #fcd34d;
+    z-index: 200;
+    pointer-events: none;
+    opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .toast.visible {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+</style>
+</head>
+<body>
+
+<header>
+  <a href="demo-all.html">← All Demos</a>
+  <h1>Integrated Mapping Review + Feasibility Check</h1>
+  <span class="badge">Click tree nodes to add/remove concepts</span>
+</header>
+
+<div class="main">
+
+  <!-- Left: Criteria list -->
+  <div class="panel-left">
+    <div class="panel-header">
+      <span>LEADER Criteria</span>
+      <span id="criteria-count-badge" style="color: var(--color-green); font-weight:700; font-size:10px;"></span>
+    </div>
+    <div class="criteria-list" id="criteria-list"></div>
+  </div>
+
+  <!-- Center: Concept hierarchy tree -->
+  <div class="panel-center">
+    <div class="panel-header" style="padding: 8px 14px;">
+      <span id="tree-title">Concept Hierarchy</span>
+      <span id="tree-concept-id" style="font-family:monospace; font-size:10px; color:var(--color-gold);"></span>
+    </div>
+    <div class="tree-container" id="tree-container">
+      <div class="tree-fade-overlay" id="tree-fade-overlay"></div>
+      <svg id="tree-svg"></svg>
+    </div>
+    <div class="slider-area" id="slider-area">
+      <span class="slider-label" id="slider-label">Threshold</span>
+      <input type="range" id="threshold-slider" min="0" max="100" value="50">
+      <span class="slider-value" id="slider-value-display">—</span>
+    </div>
+  </div>
+
+  <!-- Right: Cohort funnel -->
+  <div class="panel-right">
+    <div class="panel-header">Cohort Attrition</div>
+    <div class="funnel-scroll" id="funnel-scroll"></div>
+    <div class="funnel-final">
+      <div class="funnel-final-label">Final Cohort</div>
+      <div class="funnel-final-count" id="final-count">—</div>
+      <div class="funnel-final-status" id="final-status">Computing...</div>
+    </div>
+    <div class="sensitivity-section">
+      <div class="sensitivity-label">Available Concepts</div>
+      <div id="sensitivity-bars"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+//
+// Each criterion has:
+//   selectedConcepts: Set of node IDs currently in the concept set
+//   defaultConceptId: the AI-recommended node ID (gets gold ring always)
+//
+// Tree node states (visual only, not stored on data):
+//   'mapped-default' — AI recommended, may or may not be selected
+//   'discoverable'   — available, not the default
+//   'context'        — structural parent, not selectable
+
+const CRITERIA = [
+  {
+    id: 1, type: 'inclusion', domain: 'Condition', text: 'Type 2 diabetes mellitus',
+    defaultConceptId: 't2dm',
+    selectedConcepts: new Set(['t2dm']),
+    treeData: {
+      id: 'diabetes', name: 'Diabetes mellitus', conceptId: 4008576, state: 'context', freq: 5102,
+      children: [
+        {
+          id: 't2dm', name: 'Type 2 diabetes mellitus', conceptId: 201826, state: 'mapped-default', freq: 1393, rate: 0.08,
+          children: [
+            { id: 't2dm_wo', name: 'T2DM without complication', conceptId: 443238, state: 'discoverable', freq: 892, rate: 0.039 },
+            { id: 't2dm_nephro', name: 'T2DM with nephropathy', conceptId: 443731, state: 'discoverable', freq: 214, rate: 0.009 },
+            { id: 't2dm_retino', name: 'T2DM with retinopathy', conceptId: 443733, state: 'discoverable', freq: 187, rate: 0.008 },
+            { id: 't2dm_neuro', name: 'T2DM with neuropathy', conceptId: 443734, state: 'discoverable', freq: 156, rate: 0.007 },
+          ]
+        },
+        { id: 't1dm', name: 'Type 1 diabetes mellitus', conceptId: 201254, state: 'context', freq: 312 },
+        { id: 'secondary_dm', name: 'Secondary diabetes', conceptId: 195771, state: 'context', freq: 67 },
+      ]
+    }
+  },
+  {
+    id: 2, type: 'inclusion', domain: 'Measurement', text: 'HbA1c ≥ 7.0%',
+    hasSlider: true, sliderConfig: { min: 5, max: 10, step: 0.5, default: 7.0, param: 'hba1c' },
+    defaultConceptId: 'hba1c',
+    selectedConcepts: new Set(['hba1c']),
+    treeData: {
+      id: 'hba1c_parent', name: 'HbA1c measurement', conceptId: null, state: 'context', freq: 0,
+      children: [
+        { id: 'hba1c', name: 'HbA1c (glycosylated)', conceptId: 3004410, state: 'mapped-default', freq: 1250, rateMul: 1.0 },
+        { id: 'hba1c_pct', name: 'HbA1c in blood (%)', conceptId: 3034639, state: 'discoverable', freq: 980, rateMul: 0.92 },
+        { id: 'hba1c_mmol', name: 'HbA1c (mmol/mol)', conceptId: 40762499, state: 'discoverable', freq: 720, rateMul: 0.85 },
+      ]
+    }
+  },
+  {
+    id: 3, type: 'inclusion', domain: 'Observation', text: 'Age ≥ 50',
+    hasSlider: true, sliderConfig: { min: 18, max: 80, step: 5, default: 50, param: 'age' },
+    defaultConceptId: null,
+    selectedConcepts: new Set([]),
+    treeData: null
+  },
+  {
+    id: 4, type: 'inclusion', domain: 'Condition', text: 'Established CVD or high CV risk',
+    defaultConceptId: 'coronary',
+    selectedConcepts: new Set(['coronary']),
+    treeData: {
+      id: 'cv_parent', name: 'Cardiovascular disease', conceptId: 316139, state: 'context', freq: 8200,
+      children: [
+        { id: 'coronary', name: 'Coronary arteriosclerosis', conceptId: 4185932, state: 'mapped-default', freq: 3120, rate: 0.54 },
+        { id: 'ihd', name: 'Ischemic heart disease', conceptId: 317576, state: 'discoverable', freq: 2800, rate: 0.48 },
+        { id: 'ami', name: 'Acute myocardial infarction', conceptId: 4329847, state: 'discoverable', freq: 1200, rate: 0.18 },
+        { id: 'stroke', name: 'Cerebrovascular disease', conceptId: 381591, state: 'discoverable', freq: 1800, rate: 0.32 },
+        { id: 'pad', name: 'Peripheral artery disease', conceptId: 318443, state: 'discoverable', freq: 900, rate: 0.15 },
+      ]
+    }
+  },
+  {
+    id: 5, type: 'inclusion', domain: 'Measurement', text: 'eGFR ≥ 30 mL/min',
+    hasSlider: true, sliderConfig: { min: 0, max: 90, step: 5, default: 30, param: 'egfr' },
+    defaultConceptId: 'egfr',
+    selectedConcepts: new Set(['egfr']),
+    treeData: {
+      id: 'egfr_parent', name: 'Renal function tests', conceptId: null, state: 'context', freq: 0,
+      children: [
+        { id: 'egfr', name: 'GFR/BSA (estimated)', conceptId: 3049187, state: 'mapped-default', freq: 1890, rateMul: 1.0 },
+        { id: 'egfr_cr', name: 'Creatinine-based eGFR', conceptId: 46236952, state: 'discoverable', freq: 1650, rateMul: 0.95 },
+        { id: 'egfr_cys', name: 'Cystatin C eGFR', conceptId: 44809329, state: 'discoverable', freq: 1200, rateMul: 0.78 },
+      ]
+    }
+  },
+  {
+    id: 6, type: 'exclusion', domain: 'Condition', text: 'Type 1 diabetes',
+    defaultConceptId: 't1dm_tree',
+    selectedConcepts: new Set(['t1dm_tree']),
+    treeData: {
+      id: 't1dm_tree', name: 'Type 1 diabetes mellitus', conceptId: 201254, state: 'mapped-default', freq: 312, rate: 0.02,
+      children: [
+        { id: 't1dm_keto', name: 'T1DM with ketoacidosis', conceptId: 443237, state: 'discoverable', freq: 45, rate: 0.005 },
+        { id: 'iddm', name: 'Insulin-dependent diabetes', conceptId: 40484648, state: 'discoverable', freq: 380, rate: 0.025 },
+      ]
+    }
+  },
+  {
+    id: 7, type: 'exclusion', domain: 'Drug', text: 'Rapid-acting insulin (90d)',
+    defaultConceptId: 'rapid_insulin',
+    selectedConcepts: new Set(['rapid_insulin']),
+    treeData: {
+      id: 'insulin_tree', name: 'Insulin preparations', conceptId: null, state: 'context', freq: 0,
+      children: [
+        { id: 'rapid_insulin', name: 'Insulin, rapid acting', conceptId: 1567198, state: 'mapped-default', freq: 456, rate: 0.06 },
+        { id: 'any_insulin', name: 'Any insulin', conceptId: 21600712, state: 'discoverable', freq: 1200, rate: 0.12 },
+        { id: 'lispro', name: 'Insulin lispro', conceptId: 1596977, state: 'discoverable', freq: 210, rate: 0.03 },
+      ]
+    }
+  },
+];
+
+// Slider state
+const sliderState = { hba1c: 7.0, age: 50, egfr: 30 };
+
+// Track active criterion
+let activeCriterionId = CRITERIA[0].id;
+
+// ─── NODE LOOKUP HELPERS ─────────────────────────────────────────────────────
+
+function findNodeById(node, id) {
+  if (node.id === id) return node;
+  if (node.children) {
+    for (const c of node.children) {
+      const found = findNodeById(c, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function getAllSelectableNodes(node, result = []) {
+  if (node.state === 'mapped-default' || node.state === 'discoverable') result.push(node);
+  if (node.children) node.children.forEach(c => getAllSelectableNodes(c, result));
+  return result;
+}
+
+function getSelectableNodesForCriterion(criterion) {
+  if (!criterion.treeData) return [];
+  return getAllSelectableNodes(criterion.treeData);
+}
+
+// ─── RATE COMPUTATION ────────────────────────────────────────────────────────
+//
+// Union model: combined rate = 1 - product(1 - rate_i) for all selected nodes.
+// For slider criteria, each node has a rateMul applied to the slider-derived base rate.
+
+function computeCriterionRate(criterion) {
+  // Slider-only criteria with no tree (e.g. Age)
+  if (criterion.hasSlider && !criterion.treeData) {
+    const param = criterion.sliderConfig.param;
+    if (param === 'age') {
+      return Math.max(0.05, 1.1 - (sliderState.age - 18) / 72);
+    }
+  }
+
+  if (!criterion.treeData) return 0.5;
+
+  const selected = criterion.selectedConcepts;
+
+  // If nothing selected, use default concept's rate (fallback)
+  if (selected.size === 0) {
+    const defaultNode = criterion.defaultConceptId
+      ? findNodeById(criterion.treeData, criterion.defaultConceptId)
+      : null;
+    if (!defaultNode) return 0.5;
+    if (criterion.hasSlider) {
+      const param = criterion.sliderConfig.param;
+      return computeSliderRate(param, defaultNode.rateMul || 1.0);
+    }
+    return defaultNode.rate || 0.5;
+  }
+
+  // Union of selected nodes
+  let combinedMiss = 1;
+  selected.forEach(nodeId => {
+    const node = findNodeById(criterion.treeData, nodeId);
+    if (!node) return;
+
+    let rate;
+    if (criterion.hasSlider && criterion.sliderConfig) {
+      const param = criterion.sliderConfig.param;
+      const mul = node.rateMul !== undefined ? node.rateMul : 1.0;
+      rate = computeSliderRate(param, mul);
+    } else {
+      rate = node.rate !== undefined ? node.rate : 0;
+    }
+    combinedMiss *= (1 - rate);
+  });
+
+  return 1 - combinedMiss;
+}
+
+function computeSliderRate(param, mul) {
+  if (param === 'hba1c') {
+    return Math.max(0.05, 0.85 - 0.092 * sliderState.hba1c) * mul;
+  } else if (param === 'egfr') {
+    return Math.max(0.1, 1.0 - sliderState.egfr * 0.0072) * mul;
+  }
+  return mul;
+}
+
+// ─── FUNNEL COMPUTATION ───────────────────────────────────────────────────────
+
+function computeFunnel() {
+  let n = 2300000;
+  const steps = [{ label: 'CDM Population', count: n, criterionId: null }];
+
+  CRITERIA.forEach(c => {
+    const rate = computeCriterionRate(c);
+
+    let newN;
+    if (c.type === 'exclusion') {
+      const excluded = Math.round(n * rate);
+      newN = n - excluded;
+    } else {
+      newN = Math.round(n * rate);
+    }
+
+    // Label: primary concept name + (+N) if multiple selected
+    const selCount = c.selectedConcepts.size;
+    let labelName;
+    if (selCount === 0) {
+      labelName = c.text;
+    } else if (selCount === 1) {
+      const nodeId = [...c.selectedConcepts][0];
+      const node = c.treeData ? findNodeById(c.treeData, nodeId) : null;
+      labelName = node ? node.name : c.text;
+    } else {
+      const firstId = [...c.selectedConcepts][0];
+      const firstNode = c.treeData ? findNodeById(c.treeData, firstId) : null;
+      const baseName = firstNode ? firstNode.name : c.text;
+      labelName = `${truncate(baseName, 16)} (+${selCount - 1})`;
+    }
+
+    steps.push({ label: labelName, count: newN, criterionId: c.id, prev: n });
+    n = newN;
+  });
+
+  return steps;
+}
+
+// ─── RENDER CRITERIA LIST ────────────────────────────────────────────────────
+
+function renderCriteriaList() {
+  const funnel = computeFunnel();
+  const container = document.getElementById('criteria-list');
+  container.innerHTML = '';
+
+  CRITERIA.forEach(c => {
+    const step = funnel.find(s => s.criterionId === c.id);
+    const count = step ? step.count : 0;
+
+    const card = document.createElement('div');
+    const isActive = c.id === activeCriterionId;
+    card.className = 'criteria-card' + (isActive ? ' active active-animate' : '');
+    card.dataset.id = c.id;
+
+    const typeBadge = c.type === 'inclusion'
+      ? `<span class="badge-incl">INCL</span>`
+      : `<span class="badge-excl">EXCL</span>`;
+    const domBadge = `<span class="badge-domain">${c.domain}</span>`;
+
+    const dots = [];
+    if (c.hasSlider) dots.push('<span class="has-slider-dot" title="Has threshold slider"></span>');
+    if (c.treeData) dots.push('<span class="has-tree-dot" title="Has concept tree"></span>');
+
+    // Summary line: "N concepts selected" or concept name
+    const selCount = c.selectedConcepts.size;
+    let summaryText;
+    if (!c.treeData) {
+      summaryText = c.hasSlider ? 'Threshold-based' : 'Derived';
+    } else if (selCount === 0) {
+      summaryText = 'No concept selected';
+    } else if (selCount === 1) {
+      const nodeId = [...c.selectedConcepts][0];
+      const node = findNodeById(c.treeData, nodeId);
+      summaryText = node ? truncate(node.name, 20) : '1 concept';
+    } else {
+      summaryText = `${selCount} concepts selected`;
+    }
+
+    // Build selected concept names list (only when multiple selected)
+    let selectedListHtml = '';
+    if (selCount > 1 && c.treeData) {
+      selectedListHtml = '<div class="selected-concepts-list">';
+      c.selectedConcepts.forEach(nodeId => {
+        const node = findNodeById(c.treeData, nodeId);
+        if (node) {
+          selectedListHtml += `<span class="selected-concept-item">${truncate(node.name, 22)}</span>`;
+        }
+      });
+      selectedListHtml += '</div>';
+    }
+
+    card.innerHTML = `
+      <div class="criteria-card-top">
+        ${typeBadge}
+        ${domBadge}
+        ${dots.join('')}
+      </div>
+      <div class="criteria-text">${c.text}</div>
+      <div class="criteria-concept">
+        <span class="concept-summary">${summaryText}</span>
+        <span class="criteria-count">${formatCount(count)}</span>
+      </div>
+      ${selectedListHtml}
+    `;
+
+    card.addEventListener('click', () => {
+      if (activeCriterionId === c.id) return;
+      activeCriterionId = c.id;
+      renderCriteriaList();
+      renderTreeWithTransition(c);
+      updateSlider(c);
+    });
+
+    container.appendChild(card);
+  });
+
+  // Update header badge
+  const finalCount = funnel[funnel.length - 1].count;
+  document.getElementById('criteria-count-badge').textContent = formatCount(finalCount);
+}
+
+// ─── TREE RENDERING ──────────────────────────────────────────────────────────
+
+// Track whether this is a switch (for fade transition) vs initial load
+let _treeRendering = false;
+
+function renderTreeWithTransition(criterion) {
+  if (_treeRendering) return;
+  const overlay = document.getElementById('tree-fade-overlay');
+
+  // Fade out current tree
+  overlay.classList.add('fading-out');
+  setTimeout(() => {
+    renderTree(criterion);
+    // Fade back in
+    requestAnimationFrame(() => {
+      overlay.classList.remove('fading-out');
+    });
+    _treeRendering = false;
+  }, 200);
+  _treeRendering = true;
+}
+
+function renderTree(criterion) {
+  const container = document.getElementById('tree-container');
+  const svg = d3.select('#tree-svg');
+  svg.selectAll('*').remove();
+
+  document.getElementById('tree-title').textContent = criterion.text;
+
+  if (!criterion.treeData) {
+    const msg = document.createElement('div');
+    msg.className = 'no-tree-msg';
+    msg.innerHTML = `
+      <div class="icon">⚙</div>
+      <p>Derived criterion<br>No concept hierarchy available</p>
+    `;
+    const old = container.querySelector('.no-tree-msg');
+    if (old) old.remove();
+    container.appendChild(msg);
+    svg.style('display', 'none');
+    document.getElementById('tree-concept-id').textContent = '';
+    return;
+  }
+
+  const old = container.querySelector('.no-tree-msg');
+  if (old) old.remove();
+  svg.style('display', null);
+
+  // Show default concept ID in header
+  if (criterion.defaultConceptId) {
+    const defaultNode = findNodeById(criterion.treeData, criterion.defaultConceptId);
+    if (defaultNode && defaultNode.conceptId) {
+      document.getElementById('tree-concept-id').textContent = `#${defaultNode.conceptId}`;
+    }
+  }
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+  const margin = { top: 20, right: 30, bottom: 20, left: 20 };
+
+  svg.attr('width', width).attr('height', height);
+
+  const gOuter = svg.append('g');
+  const g = gOuter.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // Zoom + Pan
+  const zoomBehavior = d3.zoom()
+    .scaleExtent([0.3, 3])
+    .on('zoom', (event) => {
+      gOuter.attr('transform', event.transform);
+    });
+  svg.call(zoomBehavior);
+  svg.style('cursor', 'grab');
+  svg.on('mousedown.cursor', () => svg.style('cursor', 'grabbing'));
+  svg.on('mouseup.cursor', () => svg.style('cursor', 'grab'));
+
+  const root = d3.hierarchy(criterion.treeData);
+  const treeLayout = d3.tree()
+    .size([height - margin.top - margin.bottom, width - margin.left - margin.right - 80]);
+
+  treeLayout(root);
+
+  // Build parent lookup for hover highlight
+  const parentMap = new Map();
+  root.descendants().forEach(d => {
+    if (d.parent) parentMap.set(d.data.id, d.parent.data.id);
+  });
+
+  // Draw links — animate from zero length on entry
+  const linkPathFn = d3.linkHorizontal().x(d => d.y).y(d => d.x);
+
+  const linkSel = g.selectAll('.tree-link')
+    .data(root.links())
+    .enter().append('path')
+    .attr('class', 'tree-link')
+    .attr('id', (d, i) => `link-${i}`)
+    .attr('d', linkPathFn);
+
+  // Animate links drawing in
+  linkSel.each(function() {
+    const totalLen = this.getTotalLength ? this.getTotalLength() : 60;
+    d3.select(this)
+      .attr('stroke-dasharray', totalLen)
+      .attr('stroke-dashoffset', totalLen)
+      .transition()
+      .duration(400)
+      .ease(d3.easeCubicOut)
+      .attr('stroke-dashoffset', 0)
+      .on('end', function() {
+        d3.select(this).attr('stroke-dasharray', null).attr('stroke-dashoffset', null);
+      });
+  });
+
+  // Determine CSS classes for each node
+  function nodeClasses(d) {
+    const data = d.data;
+    const isSelected = criterion.selectedConcepts.has(data.id);
+    const isDefault = data.id === criterion.defaultConceptId;
+
+    let cls = 'tree-node';
+
+    if (data.state === 'context') {
+      cls += ' node-context';
+    } else if (isDefault) {
+      cls += ' node-mapped-default';
+      if (isSelected) cls += ' node-selected';
+    } else if (data.state === 'discoverable' || data.state === 'mapped-default') {
+      cls += ' node-discoverable';
+      if (isSelected) cls += ' node-selected';
+    }
+
+    return cls;
+  }
+
+  // Draw nodes — staggered entry from left
+  const nodes = g.selectAll('.tree-node')
+    .data(root.descendants())
+    .enter().append('g')
+    .attr('class', nodeClasses)
+    .attr('transform', d => `translate(${d.y},${d.x})`)
+    .attr('opacity', 0)
+    .attr('data-id', d => d.data.id);
+
+  // Staggered entrance: each node slides in with 50ms delay
+  nodes.transition()
+    .delay((d, i) => i * 50)
+    .duration(300)
+    .ease(d3.easeBackOut.overshoot(1.2))
+    .attr('opacity', 1);
+
+  const radii = { 'mapped-default': 12, 'discoverable': 9, 'context': 6 };
+  function getRadius(d) {
+    return radii[d.data.state] || 6;
+  }
+
+  // Circles
+  nodes.append('circle')
+    .attr('r', d => getRadius(d))
+    .on('mouseenter', function(event, d) {
+      showTooltip(event, d.data, criterion);
+      const r = getRadius(d);
+      const isContext = d.data.state === 'context';
+      if (!isContext) {
+        // Scale up 1.15x
+        d3.select(this)
+          .transition().duration(150).ease(d3.easeQuadOut)
+          .attr('r', r * 1.15);
+
+        // Intensify glow for discoverable nodes
+        if (d.data.state === 'discoverable' || d.data.state === 'mapped-default') {
+          d3.select(this).style('filter',
+            'drop-shadow(0 0 10px rgba(139,92,246,0.85))');
+        }
+
+        // Highlight parent link
+        const parentId = parentMap.get(d.data.id);
+        if (parentId) {
+          linkSel.filter(l => l.target.data.id === d.data.id)
+            .transition().duration(150)
+            .attr('stroke', '#8b5cf6')
+            .attr('stroke-width', 2.5);
+        }
+      }
+    })
+    .on('mouseleave', function(event, d) {
+      hideTooltip();
+      const r = getRadius(d);
+      d3.select(this)
+        .transition().duration(150).ease(d3.easeQuadOut)
+        .attr('r', r)
+        .style('filter', null);
+      // Restore parent link
+      linkSel.filter(l => l.target.data.id === d.data.id)
+        .transition().duration(150)
+        .attr('stroke', '#475569')
+        .attr('stroke-width', 1.5);
+    })
+    .on('click', (event, d) => {
+      if (d.data.state === 'context') return;
+      toggleConcept(criterion, d.data);
+    });
+
+  // Checkmark for selected nodes
+  nodes.filter(d => criterion.selectedConcepts.has(d.data.id))
+    .append('text')
+    .attr('class', 'check-icon')
+    .attr('text-anchor', 'middle')
+    .attr('dy', '0.35em')
+    .attr('font-size', d => getRadius(d) > 9 ? 11 : 9)
+    .text('✓');
+
+  // Plus icon for deselected selectable nodes (hover)
+  nodes.filter(d => !criterion.selectedConcepts.has(d.data.id) && d.data.state !== 'context')
+    .append('text')
+    .attr('class', 'plus-icon')
+    .attr('text-anchor', 'middle')
+    .attr('dy', '0.35em')
+    .text('+')
+    .on('mouseenter', (event, d) => showTooltip(event, d.data, criterion))
+    .on('mouseleave', hideTooltip)
+    .on('click', (event, d) => toggleConcept(criterion, d.data));
+
+  // Labels
+  nodes.append('text')
+    .attr('x', d => getRadius(d) + 5)
+    .attr('dy', '-0.3em')
+    .attr('font-size', d => d.data.state === 'mapped-default' ? 12 : d.data.state === 'discoverable' ? 11 : 10)
+    .attr('font-weight', d => d.data.id === criterion.defaultConceptId ? '600' : '400')
+    .attr('fill', d => {
+      const isSelected = criterion.selectedConcepts.has(d.data.id);
+      if (d.data.state === 'context') return '#94a3b8';
+      if (isSelected) return '#4ade80';
+      if (d.data.id === criterion.defaultConceptId) return '#f59e0b';
+      return '#c4b5fd';
+    })
+    .attr('opacity', d => d.data.state === 'context' ? 0.6 : 1)
+    .text(d => truncate(d.data.name, 22));
+
+  // Concept ID sub-labels
+  nodes.filter(d => d.data.conceptId)
+    .append('text')
+    .attr('class', 'concept-id')
+    .attr('x', d => getRadius(d) + 5)
+    .attr('dy', '1em')
+    .attr('font-size', 9)
+    .attr('fill', '#64748b')
+    .text(d => `#${d.data.conceptId}`);
+
+  // Freq badge
+  nodes.filter(d => d.data.freq > 0)
+    .append('text')
+    .attr('class', 'freq-badge')
+    .attr('x', d => getRadius(d) + 5)
+    .attr('dy', d => d.data.conceptId ? '2.2em' : '1em')
+    .attr('font-size', 9)
+    .attr('fill', '#22c55e')
+    .attr('opacity', 0.8)
+    .text(d => `n=${formatCount(d.data.freq)}`);
+}
+
+// ─── TOGGLE CONCEPT ──────────────────────────────────────────────────────────
+
+function animateNodeToggle(nodeId, isAdding) {
+  // Find the node group in the live SVG
+  const nodeGroup = d3.select(`[data-id="${nodeId}"]`);
+  if (nodeGroup.empty()) return;
+
+  const circle = nodeGroup.select('circle');
+  const rAttr = parseFloat(circle.attr('r')) || 9;
+
+  if (isAdding) {
+    // Scale-up pulse: 1.0 → 1.3 → 1.0 over 300ms
+    circle.transition().duration(100).attr('r', rAttr * 1.3)
+      .transition().duration(200).ease(d3.easeElasticOut.amplitude(1.5).period(0.4))
+      .attr('r', rAttr);
+
+    // Green ripple ring expanding outward
+    const parent = nodeGroup.node().parentNode;
+
+    const ripple = d3.select(parent).append('circle')
+      .attr('transform', nodeGroup.attr('transform'))
+      .attr('cx', 0).attr('cy', 0)
+      .attr('r', rAttr)
+      .attr('fill', 'none')
+      .attr('stroke', '#22c55e')
+      .attr('stroke-width', 2)
+      .attr('opacity', 0.8)
+      .attr('pointer-events', 'none');
+
+    ripple.transition().duration(500).ease(d3.easeQuadOut)
+      .attr('r', rAttr + 20)
+      .attr('opacity', 0)
+      .remove();
+  } else {
+    // Scale-down: 1.0 → 0.8 → 1.0 over 200ms
+    circle.transition().duration(80).attr('r', rAttr * 0.8)
+      .transition().duration(120).attr('r', rAttr);
+  }
+}
+
+function toggleConcept(criterion, nodeData) {
+  const nodeId = nodeData.id;
+  const isSelected = criterion.selectedConcepts.has(nodeId);
+
+  if (isSelected) {
+    // Prevent deselecting the last concept
+    if (criterion.selectedConcepts.size <= 1) {
+      showToast('At least 1 concept must remain selected');
+      return;
+    }
+    // Animate remove before re-render
+    animateNodeToggle(nodeId, false);
+    setTimeout(() => {
+      criterion.selectedConcepts.delete(nodeId);
+      renderTree(criterion);
+      updateFunnel();
+      renderCriteriaList();
+      updateSensitivityBars();
+    }, 150);
+  } else {
+    // Animate add (ripple plays briefly before tree re-renders)
+    animateNodeToggle(nodeId, true);
+    setTimeout(() => {
+      criterion.selectedConcepts.add(nodeId);
+      renderTree(criterion);
+      updateFunnel();
+      renderCriteriaList();
+      updateSensitivityBars();
+    }, 180);
+  }
+}
+
+// ─── SLIDER ───────────────────────────────────────────────────────────────────
+
+function updateSlider(criterion) {
+  const sliderArea = document.getElementById('slider-area');
+  const slider = document.getElementById('threshold-slider');
+  const label = document.getElementById('slider-label');
+  const display = document.getElementById('slider-value-display');
+
+  if (criterion.hasSlider && criterion.sliderConfig) {
+    sliderArea.classList.add('visible');
+    const cfg = criterion.sliderConfig;
+    slider.min = cfg.min;
+    slider.max = cfg.max;
+    slider.step = cfg.step;
+    slider.value = sliderState[cfg.param] || cfg.default;
+
+    const labels = { hba1c: 'HbA1c threshold', age: 'Min age', egfr: 'Min eGFR' };
+    const units = { hba1c: '%', age: ' yrs', egfr: ' mL/min' };
+    label.textContent = labels[cfg.param] || 'Threshold';
+    display.textContent = slider.value + (units[cfg.param] || '');
+
+    slider.oninput = () => {
+      const val = parseFloat(slider.value);
+      sliderState[cfg.param] = val;
+      display.textContent = val + (units[cfg.param] || '');
+      updateFunnel();
+      renderCriteriaList();
+    };
+  } else {
+    sliderArea.classList.remove('visible');
+    slider.oninput = null;
+  }
+}
+
+// ─── FUNNEL RENDERING ────────────────────────────────────────────────────────
+
+// Animated number counter using d3.interpolateNumber
+let _funnelPrevFinal = null;
+let _funnelBarWidths = new Map(); // step index → previous pct
+
+function animateNumber(el, fromVal, toVal, duration) {
+  const interp = d3.interpolateNumber(fromVal, toVal);
+  const ease = d3.easeCubicInOut;
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    el.textContent = formatCount(Math.round(interp(ease(t))));
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function updateFunnel() {
+  const steps = computeFunnel();
+  const maxCount = steps[0].count;
+  const finalCount = steps[steps.length - 1].count;
+
+  const scroll = document.getElementById('funnel-scroll');
+  const colorScale = d3.scaleLinear()
+    .domain([0, steps.length - 1])
+    .range(['#3b82f6', '#22c55e']);
+
+  // Check if DOM already has funnel steps (for bar animation vs rebuild)
+  const existingSteps = scroll.querySelectorAll('.funnel-step');
+  const isRebuild = existingSteps.length !== steps.length;
+
+  if (isRebuild) {
+    // First time or structure changed — build DOM and animate entry
+    scroll.innerHTML = '';
+    scroll.classList.add('funnel-updating');
+    setTimeout(() => scroll.classList.remove('funnel-updating'), 350);
+
+    steps.forEach((step, i) => {
+      const pct = Math.round((step.count / maxCount) * 100);
+      const color = colorScale(i);
+
+      const div = document.createElement('div');
+      div.className = 'funnel-step funnel-step-animated';
+      div.style.animationDelay = `${i * 30}ms`;
+
+      let deltaHtml = '';
+      if (step.prev !== undefined) {
+        const delta = step.prev - step.count;
+        if (delta > 0) {
+          const isExcl = CRITERIA.find(c => c.id === step.criterionId && c.type === 'exclusion');
+          deltaHtml = `<span class="funnel-step-delta" style="color:${isExcl ? '#f59e0b' : '#ef4444'}">−${formatCount(delta)}</span>`;
+        }
+      }
+
+      div.innerHTML = `
+        <div class="funnel-step-label">
+          <span>${truncate(step.label, 22)}</span>
+          ${deltaHtml}
+        </div>
+        <div class="funnel-bar-track">
+          <div class="funnel-bar-fill" data-bar="${i}" style="width:0%; background:${color}20; border-left: 3px solid ${color}">
+            <span class="funnel-bar-count" style="color:${color}">${formatCount(step.count)}</span>
+          </div>
+        </div>
+      `;
+      scroll.appendChild(div);
+
+      // Animate bar expanding after DOM paint
+      requestAnimationFrame(() => {
+        const bar = div.querySelector(`[data-bar="${i}"]`);
+        if (bar) {
+          bar.style.transition = `width 0.4s ease-in-out ${i * 40}ms`;
+          bar.style.width = pct + '%';
+        }
+      });
+
+      _funnelBarWidths.set(i, pct);
+    });
+  } else {
+    // Smooth update: animate existing bars to new widths + count numbers
+    steps.forEach((step, i) => {
+      const pct = Math.round((step.count / maxCount) * 100);
+      const color = colorScale(i);
+      const stepDiv = existingSteps[i];
+      if (!stepDiv) return;
+
+      // Update label text
+      const labelSpan = stepDiv.querySelector('.funnel-step-label span:first-child');
+      if (labelSpan) labelSpan.textContent = truncate(step.label, 22);
+
+      // Update delta badge
+      const oldDelta = stepDiv.querySelector('.funnel-step-delta');
+      let newDeltaHtml = '';
+      if (step.prev !== undefined) {
+        const delta = step.prev - step.count;
+        if (delta > 0) {
+          const isExcl = CRITERIA.find(c => c.id === step.criterionId && c.type === 'exclusion');
+          newDeltaHtml = `<span class="funnel-step-delta" style="color:${isExcl ? '#f59e0b' : '#ef4444'}">−${formatCount(delta)}</span>`;
+        }
+      }
+      if (oldDelta) oldDelta.outerHTML = newDeltaHtml;
+
+      // Animate bar width
+      const bar = stepDiv.querySelector('.funnel-bar-fill');
+      if (bar) {
+        bar.style.transition = 'width 0.4s ease-in-out';
+        bar.style.width = pct + '%';
+        // Animate count inside bar
+        const countSpan = bar.querySelector('.funnel-bar-count');
+        if (countSpan) {
+          const prevPct = _funnelBarWidths.get(i) || pct;
+          const prevCount = Math.round(maxCount * prevPct / 100);
+          animateNumber(countSpan, prevCount, step.count, 400);
+        }
+      }
+
+      _funnelBarWidths.set(i, pct);
+    });
+  }
+
+  // Animate final cohort counter
+  const countEl = document.getElementById('final-count');
+  const statusEl = document.getElementById('final-status');
+  const prevFinal = _funnelPrevFinal !== null ? _funnelPrevFinal : finalCount;
+  _funnelPrevFinal = finalCount;
+
+  animateNumber(countEl, prevFinal, finalCount, 500);
+
+  if (finalCount >= 10000) {
+    countEl.className = 'funnel-final-count green';
+    statusEl.textContent = 'Sufficient for TTE analysis';
+    statusEl.style.color = '#22c55e';
+  } else if (finalCount >= 1000) {
+    countEl.className = 'funnel-final-count yellow';
+    statusEl.textContent = 'Borderline — consider relaxing criteria';
+    statusEl.style.color = '#f59e0b';
+  } else {
+    countEl.className = 'funnel-final-count red';
+    statusEl.textContent = 'Too small — relax criteria';
+    statusEl.style.color = '#ef4444';
+  }
+
+  updateSensitivityBars();
+}
+
+function updateSensitivityBars() {
+  const barsDiv = document.getElementById('sensitivity-bars');
+  barsDiv.innerHTML = '';
+
+  // Show selectable nodes that are NOT yet selected (available to add)
+  const items = [];
+  CRITERIA.forEach(c => {
+    if (!c.treeData) return;
+    const allSelectable = getAllSelectableNodes(c.treeData);
+    allSelectable.forEach(node => {
+      if (!c.selectedConcepts.has(node.id)) {
+        items.push({ criterion: c, node });
+      }
+    });
+  });
+
+  if (items.length === 0) {
+    barsDiv.innerHTML = '<div style="font-size:10px; color:var(--text-secondary); padding:2px 0;">All concepts selected</div>';
+    return;
+  }
+
+  const sorted = items.sort((a, b) => b.node.freq - a.node.freq).slice(0, 5);
+  const maxFreq = sorted[0] ? sorted[0].node.freq : 1;
+
+  sorted.forEach(({ criterion, node }) => {
+    const pct = Math.round((node.freq / maxFreq) * 100);
+    const row = document.createElement('div');
+    row.className = 'sens-row';
+    row.innerHTML = `
+      <span class="sens-name" title="${node.name}">${truncate(node.name, 12)}</span>
+      <div class="sens-bar"><div class="sens-fill" style="width:${pct}%"></div></div>
+      <span class="sens-count">n=${formatCount(node.freq)}</span>
+    `;
+    barsDiv.appendChild(row);
+  });
+}
+
+// ─── TOOLTIP ─────────────────────────────────────────────────────────────────
+
+const tooltip = document.getElementById('tooltip');
+
+function showTooltip(event, data, criterion) {
+  const isSelected = criterion && criterion.selectedConcepts.has(data.id);
+  const isDefault = criterion && data.id === criterion.defaultConceptId;
+  const isSelectable = data.state === 'mapped-default' || data.state === 'discoverable';
+
+  let actionText = '';
+  if (isSelectable) {
+    if (isSelected) {
+      actionText = `<div class="t-status">✓ In concept set — click to remove</div>`;
+    } else {
+      actionText = `<div class="t-action">Click to add to concept set</div>`;
+    }
+  }
+
+  let defaultBadge = '';
+  if (isDefault) {
+    defaultBadge = `<div class="t-id" style="color:#f59e0b; margin-top:2px;">AI recommended</div>`;
+  }
+
+  tooltip.innerHTML = `
+    <div class="t-name">${data.name}</div>
+    ${data.conceptId ? `<div class="t-id">Concept ID: ${data.conceptId}</div>` : ''}
+    ${defaultBadge}
+    ${data.freq > 0 ? `<div class="t-freq">n = ${formatCount(data.freq)} persons</div>` : ''}
+    ${actionText}
+  `;
+  tooltip.style.display = 'block';
+  positionTooltip(event);
+}
+
+function hideTooltip() {
+  tooltip.style.display = 'none';
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (tooltip.style.display === 'block') positionTooltip(e);
+});
+
+function positionTooltip(event) {
+  const x = event.clientX + 12;
+  const y = event.clientY - 10;
+  tooltip.style.left = Math.min(x, window.innerWidth - 220) + 'px';
+  tooltip.style.top = Math.max(y, 8) + 'px';
+}
+
+// ─── TOAST ───────────────────────────────────────────────────────────────────
+
+let toastTimer = null;
+const toastEl = document.getElementById('toast');
+
+function showToast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.add('visible');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastEl.classList.remove('visible');
+  }, 2200);
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+
+function truncate(str, max) {
+  if (!str) return '';
+  return str.length > max ? str.slice(0, max) + '…' : str;
+}
+
+function formatCount(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(0) + 'k';
+  return String(n);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+
+function init() {
+  renderCriteriaList();
+  renderTree(CRITERIA[0]);
+  updateSlider(CRITERIA[0]);
+  updateFunnel();
+}
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const active = CRITERIA.find(c => c.id === activeCriterionId);
+    if (active) renderTree(active);
+  }, 150);
+});
+
+init();
+</script>
+</body>
+</html>

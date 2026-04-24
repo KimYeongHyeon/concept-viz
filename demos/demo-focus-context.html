@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus+Context Visualization — DOI Tree & Semantic Zoom</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  :root {
+    --bg-main: #0f172a;
+    --bg-panel: #1e293b;
+    --bg-card: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border: #475569;
+    --color-focus: #f59e0b;
+    --color-approved: #22c55e;
+    --color-candidate: #3b82f6;
+    --color-context: #64748b;
+    --color-link: #475569;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  header {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  header a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+  }
+
+  header a:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+  }
+
+  header a:focus-visible,
+  .slider-row input[type="range"]:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 3px;
+  }
+
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  header .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--color-focus);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* Main layout */
+  .main-layout {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Zoom indicator bar */
+  .zoom-bar {
+    width: 48px;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .zoom-label {
+    font-size: 9px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    margin-bottom: 8px;
+  }
+
+  .zoom-track {
+    flex: 1;
+    width: 6px;
+    background: var(--bg-card);
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .zoom-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--color-focus);
+    position: absolute;
+    left: -3px;
+    transition: top 0.2s ease;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+  }
+
+  .zoom-mode-markers {
+    position: absolute;
+    left: 16px;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .zoom-mode-label {
+    font-size: 9px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  .zoom-mode-label.active {
+    color: var(--color-focus);
+    font-weight: 600;
+  }
+
+  /* SVG canvas area */
+  .canvas-area {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    background: var(--bg-main);
+  }
+
+  #tree-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+
+  #tree-svg:active {
+    cursor: grabbing;
+  }
+
+  .zoom-info {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-panel);
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    pointer-events: none;
+  }
+
+  .zoom-mode-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    pointer-events: none;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  .zoom-mode-badge.overview {
+    background: rgba(100, 116, 139, 0.2);
+    color: var(--color-context);
+    border: 1px solid var(--color-context);
+  }
+
+  .zoom-mode-badge.normal {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--color-candidate);
+    border: 1px solid var(--color-candidate);
+  }
+
+  .zoom-mode-badge.detail {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--color-focus);
+    border: 1px solid var(--color-focus);
+  }
+
+  /* Node styles */
+  .node circle {
+    stroke-width: 2;
+    transition: r 0.3s ease, stroke-width 0.3s ease;
+    cursor: pointer;
+  }
+
+  .node .node-label {
+    fill: var(--text-primary);
+    font-family: 'Inter', -apple-system, sans-serif;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .node .node-card {
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .node .node-card rect {
+    fill: var(--bg-card);
+    stroke: var(--border);
+    stroke-width: 1;
+    rx: 4;
+    ry: 4;
+  }
+
+  .node .collapsed-badge text {
+    fill: var(--text-secondary);
+    font-size: 9px;
+    pointer-events: none;
+  }
+
+  .node .collapsed-badge rect {
+    fill: var(--bg-panel);
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+
+  .link {
+    fill: none;
+    stroke: var(--color-link);
+    stroke-width: 1.5;
+    opacity: 0.6;
+  }
+
+  /* Focus glow */
+  .node-focus circle {
+    filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));
+  }
+
+  .node:focus {
+    outline: none;
+  }
+
+  .node:focus-visible circle {
+    stroke: #f8fafc;
+    stroke-width: 3;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .sidebar-section {
+    border-bottom: 1px solid var(--border);
+    padding: 14px;
+  }
+
+  .sidebar-section:last-child {
+    border-bottom: none;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .sidebar-section h3 {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+
+  /* Focus concept card */
+  .focus-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 6px;
+    padding: 10px;
+  }
+
+  .focus-card .concept-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-focus);
+    margin-bottom: 4px;
+    overflow-wrap: anywhere;
+  }
+
+  .focus-card .concept-id {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-family: monospace;
+  }
+
+  /* Sliders */
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .slider-row label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    width: 120px;
+    flex-shrink: 0;
+  }
+
+  .slider-row input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    appearance: none;
+    height: 4px;
+    background: var(--bg-card);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-candidate);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .slider-row input[type="range"]::-webkit-slider-thumb:hover {
+    background: var(--color-focus);
+  }
+
+  .slider-row .slider-val {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    width: 16px;
+    text-align: right;
+  }
+
+  /* Concept detail */
+  .detail-empty {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
+    text-align: center;
+    padding: 12px 0;
+  }
+
+  .detail-card {
+    background: var(--bg-card);
+    border-radius: 6px;
+    padding: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .detail-card .detail-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+
+  .detail-row .dk {
+    font-size: 10px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .detail-row .dv {
+    font-size: 11px;
+    color: var(--text-primary);
+    font-family: monospace;
+    min-width: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .state-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+
+  .state-focus { background: rgba(245, 158, 11, 0.2); color: var(--color-focus); border: 1px solid rgba(245, 158, 11, 0.3); }
+  .state-approved { background: rgba(34, 197, 94, 0.2); color: var(--color-approved); border: 1px solid rgba(34, 197, 94, 0.3); }
+  .state-candidate { background: rgba(59, 130, 246, 0.2); color: var(--color-candidate); border: 1px solid rgba(59, 130, 246, 0.3); }
+  .state-context { background: rgba(100, 116, 139, 0.2); color: var(--color-context); border: 1px solid rgba(100, 116, 139, 0.3); }
+
+  /* Zoom level indicator in sidebar */
+  .zoom-levels {
+    display: flex;
+    gap: 6px;
+    flex-direction: column;
+  }
+
+  .zoom-level-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .zoom-level-item.active {
+    border-color: var(--color-focus);
+    background: rgba(245, 158, 11, 0.08);
+  }
+
+  .zoom-level-item .zlabel {
+    font-weight: 600;
+    width: 70px;
+    color: var(--text-primary);
+  }
+
+  .zoom-level-item .zrange {
+    color: var(--text-secondary);
+    font-family: monospace;
+    font-size: 10px;
+  }
+
+  .zoom-level-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .tooltip {
+    position: absolute;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 180px;
+    z-index: 100;
+    color: var(--text-primary);
+  }
+
+  .hint-bar {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .hint-bar span {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (max-width: 700px) {
+    html,
+    body {
+      overflow-x: hidden;
+    }
+
+    header {
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 12px;
+    }
+
+    header a {
+      font-size: 12px;
+      padding: 5px 8px;
+      max-width: 100%;
+    }
+
+    header h1 {
+      flex: 1 1 100%;
+      min-width: 0;
+      font-size: 13px;
+      line-height: 1.35;
+      order: 3;
+    }
+
+    header .badge {
+      display: none;
+    }
+
+    .main-layout {
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .zoom-bar {
+      display: none;
+    }
+
+    .canvas-area {
+      flex: 0 0 min(58vh, 460px);
+      width: 100%;
+      height: min(58vh, 460px);
+      min-height: 320px;
+    }
+
+    .sidebar {
+      width: 100%;
+      max-width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      border-left: 0;
+      border-top: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .sidebar-section {
+      padding: 12px;
+    }
+
+    .sidebar-section:last-child {
+      flex: 0 0 auto;
+      overflow: visible;
+    }
+
+    .slider-row {
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 6px 8px;
+    }
+
+    .slider-row label {
+      width: auto;
+      flex: 1 1 130px;
+    }
+
+    .slider-row input[type="range"] {
+      flex: 1 1 180px;
+    }
+
+    .slider-row .slider-val {
+      width: 24px;
+      text-align: left;
+    }
+
+    .zoom-level-item {
+      flex-wrap: wrap;
+    }
+
+    .zoom-level-item .zlabel {
+      width: auto;
+      min-width: 70px;
+    }
+
+    .hint-bar {
+      left: 8px;
+      right: 8px;
+      transform: none;
+      white-space: normal;
+      text-align: center;
+      line-height: 1.35;
+      padding: 5px 8px;
+    }
+
+    .zoom-mode-badge {
+      bottom: 40px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .canvas-area {
+      flex-basis: 55vh;
+      height: 55vh;
+      min-height: 300px;
+    }
+
+    .hint-bar {
+      display: none;
+    }
+
+    .zoom-info {
+      bottom: 8px;
+      left: 8px;
+    }
+
+    .zoom-mode-badge {
+      right: 8px;
+      bottom: 8px;
+      left: auto;
+      transform: none;
+    }
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-panel); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="demo.html">← Back to Main Demo</a>
+  <h1>Focus+Context Visualization — DOI Tree &amp; Semantic Zoom</h1>
+  <span class="badge">OMOP Vocabulary Explorer</span>
+</header>
+
+<div class="main-layout">
+  <!-- Zoom indicator sidebar -->
+  <div class="zoom-bar" aria-hidden="true">
+    <div class="zoom-label">Zoom</div>
+    <div class="zoom-track" id="zoom-track">
+      <div class="zoom-thumb" id="zoom-thumb"></div>
+    </div>
+  </div>
+
+  <!-- Main SVG canvas -->
+  <div class="canvas-area" id="canvas-area" role="region" aria-label="DOI tree visualization">
+    <p id="tree-keyboard-help" class="sr-only">Tree nodes are keyboard focusable. Press Enter or Space to expand or collapse a node, and press F to set the focused concept.</p>
+    <svg id="tree-svg" role="group" aria-label="DOI tree nodes" aria-describedby="tree-keyboard-help"></svg>
+    <div class="zoom-info" id="zoom-info" role="status" aria-live="polite" aria-label="Current zoom level">Zoom: 1.00x</div>
+    <div class="zoom-mode-badge normal" id="zoom-mode-badge" role="status" aria-live="polite" aria-label="Semantic zoom mode">Normal Mode</div>
+    <div class="tooltip" id="tooltip"></div>
+    <div class="hint-bar" id="tree-hint" role="note">
+      <span>Click / Enter</span> expand/collapse &nbsp;·&nbsp; <span>Double-click / F</span> set focus &nbsp;·&nbsp; <span>Scroll</span> zoom &nbsp;·&nbsp; <span>Drag</span> pan
+    </div>
+  </div>
+
+  <!-- Right sidebar -->
+  <aside class="sidebar" aria-label="Focus and detail controls">
+    <div class="sidebar-section">
+      <h3>Focus Concept</h3>
+      <div class="focus-card">
+        <div class="concept-name" id="focus-name">Type 2 diabetes mellitus</div>
+        <div class="concept-id" id="focus-id">Concept ID: 201826</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>DOI Parameters</h3>
+      <div class="slider-row">
+        <label for="ancestor-depth">Ancestor depth</label>
+        <input type="range" id="ancestor-depth" min="1" max="4" value="2" aria-describedby="ancestor-val" aria-valuetext="2 ancestor levels">
+        <output class="slider-val" id="ancestor-val" for="ancestor-depth" aria-live="polite">2</output>
+      </div>
+      <div class="slider-row">
+        <label for="descendant-depth">Descendant depth</label>
+        <input type="range" id="descendant-depth" min="1" max="4" value="2" aria-describedby="descendant-val" aria-valuetext="2 descendant levels">
+        <output class="slider-val" id="descendant-val" for="descendant-depth" aria-live="polite">2</output>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Zoom Level</h3>
+      <div class="zoom-levels" role="list" aria-label="Semantic zoom levels">
+        <div class="zoom-level-item" id="zl-overview" role="listitem">
+          <div class="zoom-level-dot" style="background: var(--color-context)"></div>
+          <span class="zlabel">Overview</span>
+          <span class="zrange">&lt; 0.7x</span>
+        </div>
+        <div class="zoom-level-item active" id="zl-normal" role="listitem" aria-current="true">
+          <div class="zoom-level-dot" style="background: var(--color-candidate)"></div>
+          <span class="zlabel">Normal</span>
+          <span class="zrange">0.7x – 1.5x</span>
+        </div>
+        <div class="zoom-level-item" id="zl-detail" role="listitem">
+          <div class="zoom-level-dot" style="background: var(--color-focus)"></div>
+          <span class="zlabel">Detail</span>
+          <span class="zrange">&gt; 1.5x</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="flex:1; overflow-y:auto;">
+      <h3 id="concept-detail-heading">Concept Detail</h3>
+      <div id="concept-detail" role="region" aria-live="polite" aria-labelledby="concept-detail-heading">
+        <p class="detail-empty">Focus, hover, or click a node to see details</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+// ─── Data ────────────────────────────────────────────────────────────────────
+const treeData = {
+  id: "root-clinical",
+  name: "Clinical Finding",
+  conceptId: null,
+  domain: "Condition",
+  vocab: "SNOMED",
+  freq: 0,
+  state: "context",
+  expanded: true,
+  children: [
+    {
+      id: "glucose-disorder",
+      name: "Disorder of glucose metabolism",
+      conceptId: 4099651,
+      domain: "Condition",
+      vocab: "SNOMED",
+      freq: 12450,
+      state: "context",
+      expanded: true,
+      children: [
+        {
+          id: "diabetes-mellitus",
+          name: "Diabetes mellitus",
+          conceptId: 201820,
+          domain: "Condition",
+          vocab: "SNOMED",
+          freq: 98230,
+          state: "context",
+          expanded: true,
+          children: [
+            {
+              id: "t1dm",
+              name: "Type 1 diabetes mellitus",
+              conceptId: 201254,
+              domain: "Condition",
+              vocab: "SNOMED",
+              freq: 31420,
+              state: "approved",
+              expanded: false,
+              descendants: 2,
+              children: [
+                {
+                  id: "t1dm-keto",
+                  name: "T1DM with ketoacidosis",
+                  conceptId: 443727,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 4210,
+                  state: "context",
+                  expanded: false,
+                  children: []
+                },
+                {
+                  id: "t1dm-uncomp",
+                  name: "T1DM without complication",
+                  conceptId: 443729,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 22310,
+                  state: "context",
+                  expanded: false,
+                  children: []
+                }
+              ]
+            },
+            {
+              id: "t2dm",
+              name: "Type 2 diabetes mellitus",
+              conceptId: 201826,
+              domain: "Condition",
+              vocab: "SNOMED",
+              freq: 142890,
+              state: "focus",
+              expanded: true,
+              children: [
+                {
+                  id: "t2dm-uncomp",
+                  name: "T2DM without complication",
+                  conceptId: 443238,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 89210,
+                  state: "candidate",
+                  expanded: false,
+                  children: []
+                },
+                {
+                  id: "t2dm-nephro",
+                  name: "T2DM with nephropathy",
+                  conceptId: 443731,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 18430,
+                  state: "candidate",
+                  expanded: false,
+                  children: []
+                },
+                {
+                  id: "t2dm-retino",
+                  name: "T2DM with retinopathy",
+                  conceptId: 443733,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 12650,
+                  state: "candidate",
+                  expanded: false,
+                  children: []
+                },
+                {
+                  id: "t2dm-neuro",
+                  name: "T2DM with neuropathy",
+                  conceptId: 443734,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 9870,
+                  state: "candidate",
+                  expanded: false,
+                  children: []
+                },
+                {
+                  id: "t2dm-pcd",
+                  name: "T2DM with peripheral circulatory disorder",
+                  conceptId: 443736,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 5430,
+                  state: "candidate",
+                  expanded: false,
+                  children: []
+                },
+                {
+                  id: "t2dm-keto",
+                  name: "T2DM with ketoacidosis",
+                  conceptId: 443737,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 2310,
+                  state: "candidate",
+                  expanded: false,
+                  children: []
+                }
+              ]
+            },
+            {
+              id: "secondary-dm",
+              name: "Secondary diabetes mellitus",
+              conceptId: 440215,
+              domain: "Condition",
+              vocab: "SNOMED",
+              freq: 8760,
+              state: "context",
+              expanded: false,
+              descendants: 1,
+              children: [
+                {
+                  id: "drug-dm",
+                  name: "Drug-induced diabetes",
+                  conceptId: 440216,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 3420,
+                  state: "context",
+                  expanded: false,
+                  children: []
+                }
+              ]
+            },
+            {
+              id: "gestational-dm",
+              name: "Gestational diabetes",
+              conceptId: 444054,
+              domain: "Condition",
+              vocab: "SNOMED",
+              freq: 22140,
+              state: "context",
+              expanded: false,
+              descendants: 1,
+              children: [
+                {
+                  id: "gdm-pregnancy",
+                  name: "GDM in pregnancy",
+                  conceptId: 444055,
+                  domain: "Condition",
+                  vocab: "SNOMED",
+                  freq: 19890,
+                  state: "context",
+                  expanded: false,
+                  children: []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let focusNodeId = "t2dm";
+let ancestorDepth = 2;
+let descendantDepth = 2;
+let currentZoom = 1.0;
+let zoomMode = "normal"; // overview | normal | detail
+
+// ─── D3 setup (deferred until DOM ready) ────────────────────────────────────
+let svg, canvasArea, width, height, g, zoom, treeLayout, linkGroup, nodeGroup;
+
+function setupD3() {
+  svg = d3.select("#tree-svg");
+  canvasArea = document.getElementById("canvas-area");
+  width = canvasArea.clientWidth || 900;
+  height = canvasArea.clientHeight || 600;
+
+  g = svg.append("g").attr("class", "tree-group");
+
+  // Zoom behavior
+  zoom = d3.zoom()
+    .scaleExtent([0.2, 4.0])
+    .on("zoom", (event) => {
+      g.attr("transform", event.transform);
+      currentZoom = event.transform.k;
+      updateZoomUI();
+      updateNodeAppearance();
+    });
+
+  svg.call(zoom);
+
+  // Tree layout
+  treeLayout = d3.tree()
+    .nodeSize([55, 230])
+    .separation((a, b) => a.parent === b.parent ? 1.1 : 1.5);
+}
+
+// ─── DOI Calculation ─────────────────────────────────────────────────────────
+function findNodePath(root, targetId) {
+  const path = [];
+  function dfs(node) {
+    path.push(node.id);
+    if (node.id === targetId) return true;
+    if (node.children) {
+      for (const child of node.children) {
+        if (dfs(child)) return true;
+      }
+    }
+    path.pop();
+    return false;
+  }
+  dfs(root);
+  return path;
+}
+
+function getDepthFromFocus(nodeId, focusPath) {
+  // depth in tree terms relative to focus
+  return 0; // placeholder; use treeNode depth diff
+}
+
+function buildVisibleTree(data, focusId, ancDepth, descDepth) {
+  // Deep clone
+  const clone = JSON.parse(JSON.stringify(data));
+
+  // Find focus path
+  const focusPath = findNodePath(clone, focusId);
+  const focusDepthInTree = {};
+
+  // BFS to assign tree depths and find focus node depth
+  let focusTreeDepth = 0;
+  function assignDepths(node, depth) {
+    node._treeDepth = depth;
+    if (node.id === focusId) focusTreeDepth = depth;
+    if (node.children) node.children.forEach(c => assignDepths(c, depth + 1));
+  }
+  assignDepths(clone, 0);
+
+  // Determine which nodes to expand based on DOI
+  function setExpansion(node) {
+    const depthDiff = node._treeDepth - focusTreeDepth;
+    const isOnFocusPath = focusPath.includes(node.id);
+
+    if (node.id === focusId) {
+      // Focus node: expand descendants up to descDepth
+      node._doiVisible = true;
+      node._expanded = true;
+    } else if (isOnFocusPath) {
+      // Ancestors of focus: show up to ancDepth levels above
+      const ancLevel = focusTreeDepth - node._treeDepth;
+      node._doiVisible = ancLevel <= ancDepth;
+      node._expanded = node._doiVisible;
+    } else {
+      // Non-path nodes
+      if (depthDiff > 0 && depthDiff <= descDepth) {
+        // Descendants within descDepth
+        node._doiVisible = true;
+        // Only expand if parent was focus or on focus path sibling
+        const parentOnPath = focusPath.includes(node._parentId);
+        node._expanded = (depthDiff < descDepth);
+      } else if (depthDiff < 0 && Math.abs(depthDiff) <= ancDepth) {
+        node._doiVisible = true;
+        node._expanded = true;
+      } else {
+        // Context node: visible but collapsed
+        const depth = Math.abs(depthDiff);
+        node._doiVisible = depth <= Math.max(ancDepth, descDepth) + 1;
+        node._expanded = false;
+      }
+    }
+
+    if (node._doiVisible && node.children && typeof node.expanded === "boolean") {
+      node._expanded = node.expanded;
+    }
+
+    if (node.children) {
+      node.children.forEach(c => {
+        c._parentId = node.id;
+        setExpansion(c);
+      });
+    }
+  }
+
+  setExpansion(clone);
+  return clone;
+}
+
+// ─── Node color / radius by state ────────────────────────────────────────────
+const stateColors = {
+  focus:     "#f59e0b",
+  approved:  "#22c55e",
+  candidate: "#3b82f6",
+  context:   "#64748b"
+};
+
+function nodeRadius(d) {
+  switch (d.data.state) {
+    case "focus":     return 11;
+    case "approved":  return 8;
+    case "candidate": return 7;
+    default:          return 6;
+  }
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+function initGroups() {
+  linkGroup = g.append("g").attr("class", "links");
+  nodeGroup = g.append("g").attr("class", "nodes");
+}
+
+function getVisibleNodes(rootData) {
+  const visible = [];
+  function walk(node) {
+    if (!node._doiVisible) return;
+    visible.push(node);
+    if (node._expanded && node.children) {
+      node.children.forEach(walk);
+    }
+  }
+  walk(rootData);
+  return visible;
+}
+
+function buildHierarchy(rootData) {
+  // Build flat list of visible nodes and their parent relationships
+  const visibleIds = new Set();
+  const nodeMap = {};
+
+  function walk(node, parentId) {
+    if (!node._doiVisible) return;
+    node._visParentId = parentId;
+    visibleIds.add(node.id);
+    nodeMap[node.id] = node;
+    if (node._expanded && node.children) {
+      node.children.forEach(c => walk(c, node.id));
+    }
+  }
+  walk(rootData, null);
+
+  return { visibleIds, nodeMap };
+}
+
+function render(animate = true) {
+  const processedData = buildVisibleTree(treeData, focusNodeId, ancestorDepth, descendantDepth);
+
+  // Build d3 hierarchy from visible nodes
+  function buildD3Tree(node) {
+    if (!node._doiVisible) return null;
+    const d3node = { data: node, children: [] };
+    if (node._expanded && node.children) {
+      node.children.forEach(c => {
+        const child = buildD3Tree(c);
+        if (child) d3node.children.push(child);
+      });
+    }
+    if (d3node.children.length === 0) d3node.children = undefined;
+    return d3node;
+  }
+
+  function findVisibleD3Root(node) {
+    const visibleTree = buildD3Tree(node);
+    if (visibleTree) return visibleTree;
+    if (!node.children) return null;
+
+    for (const child of node.children) {
+      const candidate = findVisibleD3Root(child);
+      if (candidate) return candidate;
+    }
+    return null;
+  }
+
+  // DOI can intentionally hide the original root. Promote the nearest visible
+  // path node so the D3 hierarchy stays valid without widening DOI visibility.
+  const hierData = findVisibleD3Root(processedData);
+  if (!hierData) {
+    linkGroup.selectAll(".link").remove();
+    nodeGroup.selectAll(".node").remove();
+    return;
+  }
+  const root = d3.hierarchy(hierData);
+  treeLayout(root);
+
+  const duration = animate ? 500 : 0;
+
+  // Links
+  const links = root.links();
+  const linkSel = linkGroup.selectAll(".link").data(links, d => `${d.source.data.data.id}-${d.target.data.data.id}`);
+
+  linkSel.enter()
+    .append("path")
+    .attr("class", "link")
+    .attr("d", d3.linkHorizontal()
+      .x(d => d.y)
+      .y(d => d.x))
+    .attr("opacity", 0)
+    .transition().duration(duration)
+    .attr("opacity", 1);
+
+  linkSel.transition().duration(duration)
+    .attr("d", d3.linkHorizontal()
+      .x(d => d.y)
+      .y(d => d.x));
+
+  linkSel.exit()
+    .transition().duration(duration)
+    .attr("opacity", 0)
+    .remove();
+
+  // Nodes
+  const nodes = root.descendants();
+  const nodeSel = nodeGroup.selectAll(".node")
+    .data(nodes, d => d.data.data.id);
+
+  const nodeEnter = nodeSel.enter()
+    .append("g")
+    .attr("class", d => {
+      const state = d.data.data.state;
+      return `node node-${state}${state === "focus" ? " node-focus" : ""}`;
+    })
+    .attr("transform", d => `translate(${d.y},${d.x})`)
+    .attr("opacity", 0)
+    .attr("tabindex", 0)
+    .attr("focusable", "true")
+    .attr("role", "button")
+    .style("cursor", "pointer");
+
+  // Circle
+  nodeEnter.append("circle")
+    .attr("r", d => nodeRadius(d))
+    .attr("fill", d => stateColors[d.data.data.state] || stateColors.context)
+    .attr("stroke", d => d.data.data.state === "focus" ? "#f59e0b" : stateColors[d.data.data.state])
+    .attr("fill-opacity", d => d.data.data.state === "context" ? 0.5 : 0.9);
+
+  // Label (normal mode)
+  nodeEnter.append("text")
+    .attr("class", "node-label node-label-normal")
+    .attr("dy", "0.31em")
+    .attr("x", d => nodeRadius(d) + 6)
+    .attr("font-size", d => d.data.data.state === "focus" ? "13px" : d.data.data.state === "context" ? "10px" : "11px")
+    .attr("font-weight", d => d.data.data.state === "focus" ? "700" : "400")
+    .attr("fill", d => d.data.data.state === "context" ? "#64748b" : "#f1f5f9")
+    .text(d => {
+      const name = d.data.data.name;
+      return name.length > 28 ? name.substring(0, 26) + "…" : name;
+    });
+
+  // Focus star
+  nodeEnter.filter(d => d.data.data.state === "focus")
+    .append("text")
+    .attr("class", "focus-star")
+    .attr("x", -nodeRadius({ data: { data: { state: "focus" } } }) - 14)
+    .attr("dy", "0.35em")
+    .attr("font-size", "12px")
+    .attr("fill", "#f59e0b")
+    .text("★");
+
+  // Collapsed badge (for nodes with hidden children)
+  nodeEnter.each(function(d) {
+    const node = d.data.data;
+    const hasHiddenChildren = node.children && node.children.length > 0 && !node._expanded;
+    if (hasHiddenChildren) {
+      const count = node.children.length;
+      const badge = d3.select(this).append("g").attr("class", "collapsed-badge").attr("transform", `translate(${nodeRadius(d) + 2}, -14)`);
+      badge.append("rect").attr("x", -1).attr("y", -8).attr("width", 22).attr("height", 13).attr("rx", 3).attr("fill", "#1e293b").attr("stroke", "#475569").attr("stroke-width", 1);
+      badge.append("text").attr("dy", "0.31em").attr("font-size", "9px").attr("fill", "#94a3b8").attr("text-anchor", "middle").attr("x", 10).text(`+${count}`);
+    }
+  });
+
+  // Detail card (detail mode)
+  nodeEnter.append("g")
+    .attr("class", "node-card")
+    .attr("transform", `translate(${14}, -24)`)
+    .call(g => {
+      g.append("rect")
+        .attr("width", 150).attr("height", 48)
+        .attr("rx", 4).attr("fill", "#334155").attr("stroke", "#475569").attr("stroke-width", 1);
+      g.append("text")
+        .attr("class", "card-name")
+        .attr("x", 6).attr("y", 14)
+        .attr("font-size", "9px").attr("fill", "#f1f5f9")
+        .text(d => d.data.data.name.length > 22 ? d.data.data.name.substring(0, 20) + "…" : d.data.data.name);
+      g.append("text")
+        .attr("x", 6).attr("y", 26)
+        .attr("font-size", "8px").attr("fill", "#94a3b8")
+        .text(d => d.data.data.conceptId ? `ID: ${d.data.data.conceptId}` : "");
+      g.append("text")
+        .attr("x", 6).attr("y", 36)
+        .attr("font-size", "8px").attr("fill", "#64748b")
+        .text(d => d.data.data.freq ? `CDM: ${d.data.data.freq.toLocaleString()}` : "");
+      g.append("text")
+        .attr("x", 6).attr("y", 46)
+        .attr("font-size", "8px").attr("fill", "#64748b")
+        .text(d => `${d.data.data.domain || ""} · ${d.data.data.vocab || ""}`);
+    });
+
+  // Update existing nodes
+  nodeSel.transition().duration(duration)
+    .attr("transform", d => `translate(${d.y},${d.x})`)
+    .attr("opacity", d => d.data.data.state === "context" ? 0.6 : 1);
+
+  nodeEnter.transition().duration(duration)
+    .attr("opacity", d => d.data.data.state === "context" ? 0.6 : 1);
+
+  // Remove old nodes
+  nodeSel.exit()
+    .transition().duration(duration)
+    .attr("opacity", 0)
+    .remove();
+
+  // Merge for event binding
+  const nodeAll = nodeEnter.merge(nodeSel);
+
+  nodeAll
+    .attr("tabindex", 0)
+    .attr("focusable", "true")
+    .attr("role", "button")
+    .attr("aria-describedby", "tree-keyboard-help")
+    .attr("aria-expanded", d => {
+      const node = d.data.data;
+      return node.children && node.children.length > 0 ? String(Boolean(node._expanded)) : null;
+    })
+    .attr("aria-label", d => {
+      const node = d.data.data;
+      const conceptId = node.conceptId ? `, concept ID ${node.conceptId}` : "";
+      const childAction = node.children && node.children.length > 0
+        ? "Press Enter or Space to expand or collapse."
+        : "Press Enter or Space to show details.";
+      return `${node.name}, ${node.state} concept${conceptId}. ${childAction} Press F to set focus.`;
+    });
+
+  // Events
+  nodeAll.on("click", function(event, d) {
+    event.stopPropagation();
+    const node = d.data.data;
+    toggleNode(node.id);
+    showConceptDetail(node);
+  });
+
+  nodeAll.on("dblclick", function(event, d) {
+    event.stopPropagation();
+    const node = d.data.data;
+    setFocus(node.id);
+  });
+
+  nodeAll.on("mouseenter", function(event, d) {
+    const node = d.data.data;
+    showConceptDetail(node);
+    showTooltip(event, node);
+  });
+
+  nodeAll.on("mouseleave", function() {
+    hideTooltip();
+  });
+
+  nodeAll.on("focus", function(event, d) {
+    showConceptDetail(d.data.data);
+  });
+
+  nodeAll.on("keydown", function(event, d) {
+    const node = d.data.data;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleNode(node.id);
+      showConceptDetail(node);
+    } else if (event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      event.stopPropagation();
+      setFocus(node.id);
+      showConceptDetail(node);
+    }
+  });
+
+  updateNodeAppearance();
+
+  // Center on focus node
+  if (!animate) {
+    const focusD3 = nodes.find(n => n.data.data.id === focusNodeId);
+    if (focusD3) {
+      const svgEl = document.getElementById("tree-svg");
+      const w = svgEl.clientWidth;
+      const h = svgEl.clientHeight;
+      const tx = w / 2 - focusD3.y * currentZoom;
+      const ty = h / 2 - focusD3.x * currentZoom;
+      svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(currentZoom));
+    }
+  }
+}
+
+function toggleNode(nodeId) {
+  function findAndToggle(node) {
+    if (node.id === nodeId) {
+      node.expanded = !node.expanded;
+      return true;
+    }
+    if (node.children) {
+      for (const c of node.children) {
+        if (findAndToggle(c)) return true;
+      }
+    }
+    return false;
+  }
+  findAndToggle(treeData);
+  render(true);
+}
+
+function setFocus(nodeId) {
+  focusNodeId = nodeId;
+  // Update focus card
+  const node = findNode(treeData, nodeId);
+  if (node) {
+    if (node.children && typeof node.expanded === "boolean") {
+      node.expanded = true;
+    }
+    document.getElementById("focus-name").textContent = node.name;
+    document.getElementById("focus-id").textContent = node.conceptId ? `Concept ID: ${node.conceptId}` : "—";
+  }
+  render(true);
+}
+
+function findNode(root, id) {
+  if (root.id === id) return root;
+  if (root.children) {
+    for (const c of root.children) {
+      const found = findNode(c, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// ─── Semantic zoom appearance ─────────────────────────────────────────────────
+function updateNodeAppearance() {
+  const z = currentZoom;
+
+  // Update mode
+  if (z < 0.7) {
+    zoomMode = "overview";
+  } else if (z <= 1.5) {
+    zoomMode = "normal";
+  } else {
+    zoomMode = "detail";
+  }
+
+  // Update zoom level indicators in sidebar
+  document.querySelectorAll(".zoom-level-item").forEach(el => {
+    el.classList.remove("active");
+    el.removeAttribute("aria-current");
+  });
+  const activeZoomLevel = document.getElementById(`zl-${zoomMode}`);
+  if (activeZoomLevel) {
+    activeZoomLevel.classList.add("active");
+    activeZoomLevel.setAttribute("aria-current", "true");
+  }
+
+  // Update mode badge
+  const badge = document.getElementById("zoom-mode-badge");
+  badge.className = `zoom-mode-badge ${zoomMode}`;
+  badge.textContent = zoomMode === "overview" ? "Overview Mode" : zoomMode === "normal" ? "Normal Mode" : "Detail Mode";
+  badge.setAttribute("aria-label", `Semantic zoom mode: ${badge.textContent}`);
+
+  // Update zoom info
+  const zoomInfo = document.getElementById("zoom-info");
+  zoomInfo.textContent = `Zoom: ${z.toFixed(2)}x`;
+  zoomInfo.setAttribute("aria-label", `Current zoom: ${z.toFixed(2)} times`);
+
+  // Update zoom thumb position
+  const track = document.getElementById("zoom-track");
+  const thumb = document.getElementById("zoom-thumb");
+  if (track && thumb && track.clientHeight > 12) {
+    const trackH = track.clientHeight - 12;
+    // Map zoom [0.2, 4.0] → [0, trackH]
+    const pct = (z - 0.2) / (4.0 - 0.2);
+    const pos = trackH - pct * trackH; // inverted: top = high zoom
+    thumb.style.top = `${pos}px`;
+  }
+
+  // Apply semantic zoom to nodes
+  nodeGroup.selectAll(".node").each(function(d) {
+    if (!d) return;
+    const el = d3.select(this);
+
+    // Circle radius scales slightly with zoom (inverse - keep visual size constant)
+    const r = nodeRadius(d);
+
+    if (zoomMode === "overview") {
+      el.select("circle").attr("r", r * 0.7);
+      el.selectAll(".node-label-normal").attr("opacity", 0);
+      el.selectAll(".node-card").attr("opacity", 0);
+      el.selectAll(".focus-star").attr("opacity", 0);
+      el.selectAll(".collapsed-badge").attr("opacity", 0);
+    } else if (zoomMode === "normal") {
+      el.select("circle").attr("r", r);
+      el.selectAll(".node-label-normal").attr("opacity", 1);
+      el.selectAll(".node-card").attr("opacity", 0);
+      el.selectAll(".focus-star").attr("opacity", 1);
+      el.selectAll(".collapsed-badge").attr("opacity", 1);
+    } else {
+      // detail
+      el.select("circle").attr("r", r * 1.1);
+      el.selectAll(".node-label-normal").attr("opacity", 0);
+      el.selectAll(".node-card").attr("opacity", 1);
+      el.selectAll(".focus-star").attr("opacity", 0);
+      el.selectAll(".collapsed-badge").attr("opacity", 0);
+    }
+  });
+}
+
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
+const tooltipEl = document.getElementById("tooltip");
+
+function showTooltip(event, node) {
+  const stateLabel = node.state.charAt(0).toUpperCase() + node.state.slice(1);
+  tooltipEl.innerHTML = `
+    <strong style="color:${stateColors[node.state]}">${node.name}</strong><br>
+    ${node.conceptId ? `<span style="color:#94a3b8;font-family:monospace">ID: ${node.conceptId}</span><br>` : ""}
+    <span style="color:#64748b">Double-click to set focus</span>
+  `;
+  tooltipEl.style.opacity = "1";
+
+  const rect = canvasArea.getBoundingClientRect();
+  let x = event.clientX - rect.left + 12;
+  let y = event.clientY - rect.top - 10;
+  if (x + 190 > rect.width) x -= 200;
+  if (y + 80 > rect.height) y -= 80;
+  tooltipEl.style.left = x + "px";
+  tooltipEl.style.top = y + "px";
+}
+
+function hideTooltip() {
+  tooltipEl.style.opacity = "0";
+}
+
+// ─── Concept Detail panel ─────────────────────────────────────────────────────
+function showConceptDetail(node) {
+  const stateLabel = node.state.charAt(0).toUpperCase() + node.state.slice(1);
+  const childCount = node.children ? node.children.length : 0;
+  const descCount = node.descendants || childCount;
+
+  document.getElementById("concept-detail").innerHTML = `
+    <div class="detail-card">
+      <div class="detail-name">${node.name}</div>
+      <div class="detail-row">
+        <span class="dk">State</span>
+        <span class="state-badge state-${node.state}">${stateLabel}</span>
+      </div>
+      ${node.conceptId ? `<div class="detail-row"><span class="dk">Concept ID</span><span class="dv">${node.conceptId}</span></div>` : ""}
+      <div class="detail-row"><span class="dk">Domain</span><span class="dv">${node.domain || "—"}</span></div>
+      <div class="detail-row"><span class="dk">Vocabulary</span><span class="dv">${node.vocab || "—"}</span></div>
+      ${node.freq ? `<div class="detail-row"><span class="dk">CDM Freq</span><span class="dv">${node.freq.toLocaleString()}</span></div>` : ""}
+      <div class="detail-row"><span class="dk">Children</span><span class="dv">${childCount}</span></div>
+    </div>
+  `;
+}
+
+// ─── DOI Sliders ──────────────────────────────────────────────────────────────
+document.getElementById("ancestor-depth").addEventListener("input", function() {
+  ancestorDepth = +this.value;
+  document.getElementById("ancestor-val").textContent = ancestorDepth;
+  this.setAttribute("aria-valuetext", `${ancestorDepth} ancestor levels`);
+  render(true);
+});
+
+document.getElementById("descendant-depth").addEventListener("input", function() {
+  descendantDepth = +this.value;
+  document.getElementById("descendant-val").textContent = descendantDepth;
+  this.setAttribute("aria-valuetext", `${descendantDepth} descendant levels`);
+  render(true);
+});
+
+// ─── Zoom UI ──────────────────────────────────────────────────────────────────
+function updateZoomUI() {
+  // handled inside updateNodeAppearance
+}
+
+// ─── Initial render ───────────────────────────────────────────────────────────
+function initialRender() {
+  const svgEl = document.getElementById("tree-svg");
+  const w = svgEl.clientWidth || 900;
+  const h = svgEl.clientHeight || 600;
+
+  // First render without animation
+  render(false);
+
+  // Center on focus after a brief timeout to let layout settle
+  setTimeout(() => {
+    const focusCircle = nodeGroup.selectAll(".node").filter(d => d && d.data && d.data.data && d.data.data.id === focusNodeId);
+    if (!focusCircle.empty()) {
+      const d = focusCircle.datum();
+      const tx = w / 2 - d.y;
+      const ty = h / 2 - d.x;
+      svg.transition().duration(600).call(
+        zoom.transform,
+        d3.zoomIdentity.translate(tx, ty).scale(1.0)
+      );
+    }
+  }, 100);
+}
+
+// ─── Boot everything once DOM is ready ────────────────────────────────────────
+function boot() {
+  setupD3();
+  initGroups();
+  initialRender();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  // DOM already ready (script at end of body)
+  requestAnimationFrame(boot);
+}
+
+// ─── Resize handler ───────────────────────────────────────────────────────────
+window.addEventListener("resize", () => {
+  updateNodeAppearance();
+});
+</script>
+</body>
+</html>

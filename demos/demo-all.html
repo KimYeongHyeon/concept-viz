@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OMOP Criteria Mapper — Visualization Demos</title>
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-panel: #1e293b;
+      --bg-card: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border: #475569;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.3);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header .logo {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #3b82f6, #22c55e);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .header-meta {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Tab Bar */
+    .tab-bar {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      padding: 0 16px;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .tab {
+      appearance: none;
+      background: transparent;
+      border: 0;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      text-align: left;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+    .tab:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -4px;
+      background: rgba(59, 130, 246, 0.12);
+    }
+    .tab:hover {
+      color: var(--text-primary);
+      background: rgba(59, 130, 246, 0.05);
+    }
+    .tab.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent);
+    }
+    .tab .tab-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .tab:nth-child(1) .tab-icon { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .tab:nth-child(2) .tab-icon { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+    .tab:nth-child(3) .tab-icon { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .tab:nth-child(4) .tab-icon { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
+
+    .tab-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 400;
+    }
+
+    /* Tab Info Bar */
+    .tab-info {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 24px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .tab-info .technique-tag {
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* iframe container */
+    .frame-container {
+      flex: 1;
+      position: relative;
+    }
+    .frame-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: var(--bg-main);
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      pointer-events: none;
+    }
+    .frame-container iframe.active {
+      opacity: 1;
+      pointer-events: auto;
+      z-index: 1;
+    }
+
+    /* Loading overlay */
+    .loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--text-secondary);
+      font-size: 13px;
+      z-index: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Keyboard shortcuts bar */
+    .shortcut-bar {
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+      padding: 6px 24px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      display: flex;
+      gap: 20px;
+      flex-shrink: 0;
+    }
+    .shortcut-bar kbd {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 6px;
+      font-size: 10px;
+      font-family: 'SF Mono', monospace;
+      color: var(--text-primary);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <h1>
+      <span class="logo">A</span>
+      OMOP Criteria Mapper — Visualization Demos
+    </h1>
+    <div class="header-meta">Clinician-in-the-Loop | OMOP CDM v5.4 | 440,790 Concepts</div>
+  </header>
+
+  <nav class="tab-bar" role="tablist" aria-label="Visualization demos">
+    <button class="tab active" type="button" role="tab" id="tab-overview" aria-selected="true" aria-controls="demo-frame-0" tabindex="0" data-idx="0" onclick="switchTab(0)">
+      <span class="tab-icon">1</span>
+      <div>
+        <div>4-Panel Overview</div>
+        <div class="tab-desc">Criteria + Cards + Graph + Dashboard</div>
+      </div>
+    </button>
+    <button class="tab" type="button" role="tab" id="tab-space-filling" aria-selected="false" aria-controls="demo-frame-1" tabindex="-1" data-idx="1" onclick="switchTab(1)">
+      <span class="tab-icon">2</span>
+      <div>
+        <div>Space-Filling</div>
+        <div class="tab-desc">Treemap / Sunburst</div>
+      </div>
+    </button>
+    <button class="tab" type="button" role="tab" id="tab-focus-context" aria-selected="false" aria-controls="demo-frame-2" tabindex="-1" data-idx="2" onclick="switchTab(2)">
+      <span class="tab-icon">3</span>
+      <div>
+        <div>Focus + Context</div>
+        <div class="tab-desc">DOI Tree / Semantic Zoom</div>
+      </div>
+    </button>
+    <button class="tab" type="button" role="tab" id="tab-interactive-selection" aria-selected="false" aria-controls="demo-frame-3" tabindex="-1" data-idx="3" onclick="switchTab(3)">
+      <span class="tab-icon">4</span>
+      <div>
+        <div>Interactive Selection</div>
+        <div class="tab-desc">Drag / Lasso / Concept Set</div>
+      </div>
+    </button>
+    <button class="tab" type="button" role="tab" id="tab-mapping-review" aria-selected="false" aria-controls="demo-frame-4" tabindex="-1" data-idx="4" onclick="switchTab(4)">
+      <span class="tab-icon">5</span>
+      <div>
+        <div>Mapping Review</div>
+        <div class="tab-desc">Anchor Hierarchy / Gap Discovery</div>
+      </div>
+    </button>
+    <button class="tab" type="button" role="tab" id="tab-feasibility" aria-selected="false" aria-controls="demo-frame-5" tabindex="-1" data-idx="5" onclick="switchTab(5)">
+      <span class="tab-icon">6</span>
+      <div>
+        <div>Feasibility Check</div>
+        <div class="tab-desc">Threshold Sliders / Attrition</div>
+      </div>
+    </button>
+  </nav>
+
+  <div class="tab-info" id="tab-info">
+    <span class="technique-tag">Composite View</span>
+    <span>Criteria Span Highlight + Candidate Comparison Cards + Concept Hierarchy Graph + Mapping Progress Dashboard</span>
+  </div>
+
+  <div class="frame-container" id="frame-container">
+    <div class="loading"><div class="spinner"></div>Loading demo...</div>
+    <iframe id="demo-frame-0" title="4-Panel Overview demo" aria-labelledby="tab-overview" data-src="demo.html" class="active"></iframe>
+    <iframe id="demo-frame-1" title="Space-Filling demo" aria-labelledby="tab-space-filling" data-src="demo-space-filling.html"></iframe>
+    <iframe id="demo-frame-2" title="Focus and Context demo" aria-labelledby="tab-focus-context" data-src="demo-focus-context.html"></iframe>
+    <iframe id="demo-frame-3" title="Interactive Selection demo" aria-labelledby="tab-interactive-selection" data-src="demo-interactive-select.html"></iframe>
+    <iframe id="demo-frame-4" title="Mapping Review demo" aria-labelledby="tab-mapping-review" data-src="demo-mapping-review.html"></iframe>
+    <iframe id="demo-frame-5" title="Feasibility Check demo" aria-labelledby="tab-feasibility" data-src="demo-feasibility.html"></iframe>
+  </div>
+
+  <div class="shortcut-bar">
+    <span><kbd>1</kbd>–<kbd>4</kbd> Switch tabs</span>
+    <span><kbd>←</kbd> <kbd>→</kbd> Navigate tabs</span>
+    <span>Each demo is also available as a standalone page</span>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const iframes = document.querySelectorAll('.frame-container iframe');
+    const tabInfo = document.getElementById('tab-info');
+
+    const infos = [
+      { tag: 'Composite View', desc: 'Criteria Span Highlight + Candidate Comparison Cards + Concept Hierarchy Graph + Mapping Progress Dashboard' },
+      { tag: 'Space-Filling', desc: 'Treemap: 면적으로 concept 규모 표현 | Sunburst: 방사형 계층 탐색 — 클릭으로 drill-down' },
+      { tag: 'Focus+Context', desc: 'DOI Tree: 관심 노드 주변 자동 전개 | Semantic Zoom: 줌 레벨에 따라 Overview → Normal → Detail 전환' },
+      { tag: 'Visual Selection', desc: 'Drag-to-add: 노드를 끌어 Concept Set에 추가 | Lasso: Shift+드래그로 영역 선택 | Subtree: 하위트리 일괄 선택' },
+      { tag: 'Mapping Review', desc: '매핑된 concept를 anchor로 계층 자동 전개 | Purple = discoverable siblings | + 클릭으로 빠진 concept 추가' },
+      { tag: 'Feasibility Check', desc: 'Threshold 슬라이더로 criteria 조절 | Attrition Waterfall 실시간 갱신 | 프로토콜 확정 전 cohort 크기 검증' },
+    ];
+
+    let currentIdx = 0;
+
+    function switchTab(idx) {
+      if (idx < 0 || idx >= tabs.length) return;
+      currentIdx = idx;
+
+      tabs.forEach((t, i) => {
+        const selected = i === idx;
+        t.classList.toggle('active', selected);
+        t.setAttribute('aria-selected', String(selected));
+        t.tabIndex = selected ? 0 : -1;
+      });
+      iframes.forEach((f, i) => {
+        f.classList.toggle('active', i === idx);
+        // Lazy load: set src only when first activated
+        if (i === idx && !f.src && f.dataset.src) {
+          f.src = f.dataset.src;
+        }
+      });
+
+      tabInfo.innerHTML = `<span class="technique-tag">${infos[idx].tag}</span><span>${infos[idx].desc}</span>`;
+    }
+
+    function focusAndSwitchTab(idx) {
+      switchTab(idx);
+      tabs[idx].focus();
+      tabs[idx].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+
+    // Load first tab immediately
+    iframes[0].src = iframes[0].dataset.src;
+
+    // Keyboard navigation
+    document.querySelector('.tab-bar').addEventListener('keydown', (e) => {
+      if (e.key >= '1' && e.key <= String(tabs.length)) {
+        e.preventDefault();
+        focusAndSwitchTab(parseInt(e.key) - 1);
+        return;
+      }
+
+      const idx = Number(document.activeElement?.dataset?.idx);
+      if (Number.isNaN(idx)) return;
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        focusAndSwitchTab(Math.min(idx + 1, tabs.length - 1));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        focusAndSwitchTab(Math.max(idx - 1, 0));
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        focusAndSwitchTab(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        focusAndSwitchTab(tabs.length - 1);
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.closest?.('[role="tablist"]')) return;
+      if (e.key >= '1' && e.key <= '4') {
+        switchTab(parseInt(e.key) - 1);
+      } else if (e.key === 'ArrowRight') {
+        switchTab(Math.min(currentIdx + 1, tabs.length - 1));
+      } else if (e.key === 'ArrowLeft') {
+        switchTab(Math.max(currentIdx - 1, 0));
+      }
+    });
+  </script>
+</body>
+</html>

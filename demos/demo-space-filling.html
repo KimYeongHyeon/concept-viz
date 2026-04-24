@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space-Filling Visualization — OMOP Vocabulary Explorer</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-panel: #1e293b;
+      --bg-card: #334155;
+      --bg-card-hover: #3b4d66;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border: #475569;
+      --color-condition: #3b82f6;
+      --color-drug: #22c55e;
+      --color-measurement: #f59e0b;
+      --color-procedure: #a855f7;
+      --color-observation: #06b6d4;
+      --accent: #6366f1;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    body {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-panel); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .back-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      transition: all 0.15s;
+    }
+    .back-link:hover {
+      color: var(--text-primary);
+      background: var(--bg-card);
+      border-color: var(--text-secondary);
+    }
+    .back-link:focus-visible,
+    .view-btn:focus-visible,
+    .add-btn:focus-visible,
+    .concept-chip-remove:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .header h1 {
+      font-size: 17px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header h1 .logo {
+      width: 30px;
+      height: 30px;
+      background: linear-gradient(135deg, var(--color-condition), var(--color-observation));
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+    }
+    .header-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .header-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    .view-toggle {
+      display: flex;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .view-btn {
+      padding: 7px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .view-btn.active {
+      background: var(--accent);
+      color: white;
+    }
+    .view-btn:not(.active):hover {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+    }
+    .controls-info {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .legend {
+      display: flex;
+      gap: 12px;
+      margin-left: auto;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+    /* Main Layout */
+    .main-layout {
+      display: flex;
+      flex: 1 1 0%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Visualization Area */
+    .viz-area {
+      flex: 1 1 0%;
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+      background: var(--bg-main);
+      height: 100%;
+    }
+
+    /* Breadcrumb */
+    .breadcrumb {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .breadcrumb-item {
+      appearance: none;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--text-secondary);
+      background: rgba(15, 23, 42, 0.85);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      pointer-events: all;
+      transition: all 0.15s;
+      backdrop-filter: blur(4px);
+    }
+    .breadcrumb-item:hover {
+      color: var(--text-primary);
+      border-color: var(--accent);
+    }
+    .breadcrumb-item:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .breadcrumb-item.current {
+      color: var(--text-primary);
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--accent);
+      cursor: default;
+    }
+    .breadcrumb-item:disabled {
+      opacity: 1;
+    }
+    .breadcrumb-sep {
+      color: var(--text-secondary);
+      font-size: 12px;
+      opacity: 0.5;
+    }
+
+    /* View containers */
+    #treemap-view, #sunburst-view {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0; left: 0;
+    }
+    #treemap-view { display: block; }
+    #sunburst-view { display: none; }
+
+    /* Treemap SVG styles */
+    .treemap-cell {
+      cursor: pointer;
+    }
+    .treemap-cell rect {
+      stroke: var(--bg-main);
+      stroke-width: 1.5;
+      transition: opacity 0.15s;
+    }
+    .treemap-cell:hover rect { opacity: 0.85; }
+    .treemap-cell text {
+      fill: white;
+      pointer-events: none;
+    }
+
+    /* Sunburst SVG styles */
+    .sunburst-arc path {
+      cursor: pointer;
+      stroke: var(--bg-main);
+      stroke-width: 1.5;
+      transition: opacity 0.15s;
+    }
+    .sunburst-arc:hover path { opacity: 0.85; }
+    .sunburst-center {
+      cursor: pointer;
+    }
+
+    /* Tooltip */
+    .tooltip {
+      position: fixed;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 1000;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      max-width: 240px;
+      display: none;
+    }
+    .tooltip.visible { display: block; }
+    .tooltip-name {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .tooltip-row .val { color: var(--text-primary); font-weight: 500; }
+    .tooltip-hint {
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+    .tooltip-domain-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      display: inline-block;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    /* Right Sidebar */
+    .sidebar {
+      width: 250px;
+      flex-shrink: 0;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-section {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+
+    /* Selection Details */
+    .sel-name {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .sel-empty {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+    .sel-breadcrumb {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      margin-bottom: 8px;
+    }
+    .sel-bc-item {
+      font-size: 10px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+    }
+    .sel-bc-item .arrow { margin: 0 2px; opacity: 0.4; }
+
+    .sel-stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .sel-stat {
+      background: var(--bg-card);
+      border-radius: 6px;
+      padding: 8px;
+    }
+    .sel-stat-label {
+      font-size: 10px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .sel-stat-val {
+      font-size: 16px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    /* Domain badge */
+    .domain-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .domain-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 2px;
+    }
+
+    /* Add to Concept Set button */
+    .add-btn {
+      width: 100%;
+      padding: 8px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .add-btn:hover { background: #4f46e5; }
+    .add-btn:active { transform: scale(0.98); }
+    .add-btn.added {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      cursor: default;
+    }
+
+    /* Selected Concepts List */
+    .concepts-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+    }
+    .concepts-list-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .concept-chip {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .concept-chip-info { min-width: 0; }
+    .concept-chip-name {
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .concept-chip-count {
+      font-size: 10px;
+      color: var(--text-secondary);
+    }
+    .concept-chip-remove {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s;
+      line-height: 1;
+    }
+    .concept-chip-remove:hover {
+      background: rgba(220, 38, 38, 0.2);
+      border-color: #f87171;
+      color: #f87171;
+    }
+    .concepts-empty {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: center;
+      padding: 20px 0;
+      font-style: italic;
+    }
+    .concepts-count-badge {
+      background: var(--accent);
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+      margin-left: 6px;
+    }
+
+    /* Transition overlay */
+    .view-transition {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg-main);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 5;
+    }
+    .view-transition.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+
+      .header {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 12px 16px;
+      }
+
+      .header-left {
+        flex: 1 1 100%;
+        min-width: 0;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .header h1 {
+        flex: 1 1 260px;
+        min-width: 0;
+        font-size: 15px;
+        line-height: 1.35;
+      }
+
+      .header h1 .logo {
+        flex: 0 0 auto;
+      }
+
+      .header-meta {
+        flex: 1 1 100%;
+        min-width: 0;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .controls-bar {
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 10px 16px;
+      }
+
+      .controls-info {
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+
+      .legend {
+        flex: 1 1 100%;
+        min-width: 0;
+        margin-left: 0;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+      }
+
+      .main-layout {
+        flex: 1 0 auto;
+        flex-direction: column;
+        overflow: visible;
+      }
+
+      .viz-area {
+        flex: 0 0 56vh;
+        width: 100%;
+        height: 56vh;
+        min-height: 360px;
+      }
+
+      .sidebar {
+        width: 100%;
+        flex: 0 0 auto;
+        border-left: 0;
+        border-top: 1px solid var(--border);
+        overflow: visible;
+      }
+
+      .sidebar-section {
+        padding: 12px 16px;
+      }
+
+      .concepts-list {
+        flex: 0 0 auto;
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 12px 16px 16px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .header {
+        padding: 10px 12px;
+      }
+
+      .header h1 {
+        flex-basis: 100%;
+        font-size: 14px;
+      }
+
+      .header-meta span {
+        padding: 3px 8px;
+        font-size: 11px;
+      }
+
+      .controls-bar {
+        padding: 10px 12px;
+      }
+
+      .view-toggle {
+        width: 100%;
+      }
+
+      .view-btn {
+        flex: 1 1 0;
+        justify-content: center;
+        min-height: 40px;
+        padding: 7px 8px;
+      }
+
+      .controls-info {
+        font-size: 11px;
+      }
+
+      .legend {
+        gap: 6px 10px;
+      }
+
+      .breadcrumb {
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        max-height: 96px;
+        overflow-y: auto;
+        align-items: flex-start;
+      }
+
+      .breadcrumb-item {
+        max-width: 100%;
+        text-align: left;
+        overflow-wrap: anywhere;
+      }
+
+      .viz-area {
+        flex-basis: 52vh;
+        height: 52vh;
+        min-height: 320px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <a href="demo.html" class="back-link">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M19 12H5M12 5l-7 7 7 7"/>
+      </svg>
+      Back to Main Demo
+    </a>
+    <h1>
+      <div class="logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+      </div>
+      Space-Filling Visualization &mdash; OMOP Vocabulary Explorer
+    </h1>
+  </div>
+  <div class="header-meta">
+    <span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+      440k concepts
+    </span>
+    <span>OMOP CDM v5.4</span>
+    <span>D3.js v7</span>
+  </div>
+</div>
+
+<!-- Controls Bar -->
+<div class="controls-bar">
+  <div class="view-toggle">
+    <button class="view-btn active" id="btn-treemap" onclick="switchView('treemap')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" opacity="0.8">
+        <rect x="3" y="3" width="9" height="9" rx="1"/><rect x="14" y="3" width="7" height="9" rx="1"/>
+        <rect x="3" y="14" width="5" height="7" rx="1"/><rect x="10" y="14" width="11" height="7" rx="1"/>
+      </svg>
+      Treemap
+    </button>
+    <button class="view-btn" id="btn-sunburst" onclick="switchView('sunburst')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="12"/>
+      </svg>
+      Sunburst
+    </button>
+  </div>
+  <div class="controls-info" id="controls-hint">
+    Click a cell to zoom in &bull; Click breadcrumb to navigate back
+  </div>
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background: var(--color-condition)"></div>Condition
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: var(--color-drug)"></div>Drug
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: var(--color-measurement)"></div>Measurement
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: var(--color-procedure)"></div>Procedure
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background: var(--color-observation)"></div>Observation
+    </div>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div class="main-layout">
+  <!-- Viz Area -->
+  <div class="viz-area" id="viz-area">
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <div id="treemap-view"></div>
+    <div id="sunburst-view"></div>
+    <div class="view-transition" id="view-transition"></div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Currently Selected</div>
+      <div id="sel-content">
+        <div class="sel-empty">Click any node to see details</div>
+      </div>
+    </div>
+    <div class="sidebar-section" style="padding-bottom: 0; border-bottom: none;">
+      <div class="sidebar-title">
+        Selected Concepts
+        <span class="concepts-count-badge" id="concepts-count" style="display:none">0</span>
+      </div>
+    </div>
+    <div class="concepts-list">
+      <div class="concepts-list-inner" id="concepts-list">
+        <div class="concepts-empty" id="concepts-empty">No concepts added yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-name" id="tt-name"></div>
+  <div class="tooltip-row"><span>Concepts</span><span class="val" id="tt-count"></span></div>
+  <div class="tooltip-row"><span>% of parent</span><span class="val" id="tt-pct"></span></div>
+  <div class="tooltip-row"><span>Domain</span><span class="val" id="tt-domain"></span></div>
+  <div class="tooltip-row"><span>Depth</span><span class="val" id="tt-depth"></span></div>
+  <div class="tooltip-hint" id="tt-hint"></div>
+</div>
+
+<script>
+// ===== DATA =====
+const omopData = {
+  name: "OMOP CDM v5.4",
+  value: 440000,
+  domain: "root",
+  children: [
+    {
+      name: "Condition",
+      value: 180000,
+      domain: "Condition",
+      children: [
+        { name: "Cardiovascular", value: 45000, domain: "Condition" },
+        {
+          name: "Endocrine",
+          value: 32000,
+          domain: "Condition",
+          children: [
+            {
+              name: "Diabetes",
+              value: 12800,
+              domain: "Condition",
+              children: [
+                { name: "T2DM", value: 1400, domain: "Condition" },
+                { name: "T1DM", value: 312, domain: "Condition" },
+                { name: "Other Diabetes", value: 11088, domain: "Condition" }
+              ]
+            },
+            { name: "Thyroid", value: 8000, domain: "Condition" },
+            { name: "Other Endocrine", value: 11200, domain: "Condition" }
+          ]
+        },
+        { name: "Neurological", value: 28000, domain: "Condition" },
+        { name: "Respiratory", value: 22000, domain: "Condition" },
+        { name: "Oncology", value: 18000, domain: "Condition" },
+        { name: "Other Conditions", value: 35000, domain: "Condition" }
+      ]
+    },
+    {
+      name: "Drug",
+      value: 120000,
+      domain: "Drug",
+      children: [
+        {
+          name: "Antidiabetics",
+          value: 8500,
+          domain: "Drug",
+          children: [
+            { name: "GLP-1 RA", value: 234, domain: "Drug" },
+            { name: "SGLT2i", value: 189, domain: "Drug" },
+            { name: "Metformin", value: 156, domain: "Drug" },
+            { name: "Insulin", value: 1200, domain: "Drug" },
+            { name: "Other Antidiabetics", value: 6721, domain: "Drug" }
+          ]
+        },
+        { name: "Cardiovascular Drugs", value: 15000, domain: "Drug" },
+        { name: "Antibiotics", value: 12000, domain: "Drug" },
+        { name: "Analgesics", value: 9000, domain: "Drug" },
+        { name: "Other Drugs", value: 75500, domain: "Drug" }
+      ]
+    },
+    {
+      name: "Measurement",
+      value: 80000,
+      domain: "Measurement",
+      children: [
+        {
+          name: "Lab Tests",
+          value: 45000,
+          domain: "Measurement",
+          children: [
+            { name: "HbA1c", value: 89, domain: "Measurement" },
+            { name: "eGFR", value: 67, domain: "Measurement" },
+            { name: "Glucose", value: 234, domain: "Measurement" },
+            { name: "Other Labs", value: 44610, domain: "Measurement" }
+          ]
+        },
+        { name: "Vitals", value: 12000, domain: "Measurement" },
+        { name: "Imaging", value: 8000, domain: "Measurement" },
+        { name: "Other Measurements", value: 15000, domain: "Measurement" }
+      ]
+    },
+    {
+      name: "Procedure",
+      value: 40000,
+      domain: "Procedure",
+      children: [
+        { name: "Surgical", value: 18000, domain: "Procedure" },
+        { name: "Diagnostic", value: 12000, domain: "Procedure" },
+        { name: "Therapeutic", value: 10000, domain: "Procedure" }
+      ]
+    },
+    {
+      name: "Observation",
+      value: 20000,
+      domain: "Observation",
+      children: [
+        { name: "Clinical Findings", value: 12000, domain: "Observation" },
+        { name: "Social History", value: 5000, domain: "Observation" },
+        { name: "Other Observations", value: 3000, domain: "Observation" }
+      ]
+    }
+  ]
+};
+
+// ===== COLOR SCALE =====
+const domainColors = {
+  "root": "#64748b",
+  "Condition": "#3b82f6",
+  "Drug": "#22c55e",
+  "Measurement": "#f59e0b",
+  "Procedure": "#a855f7",
+  "Observation": "#06b6d4"
+};
+
+function getDomainColor(d) {
+  const domain = d.data ? d.data.domain : d.domain;
+  return domainColors[domain] || "#64748b";
+}
+
+function colorWithDepth(d) {
+  const base = getDomainColor(d);
+  const depth = d.depth || 0;
+  if (depth === 0) return "#334155";
+  return base;
+}
+
+function leafValue(d) {
+  return d && d.children ? 0 : Math.max(0, Number(d && d.value) || 0);
+}
+
+function buildHierarchy(data) {
+  return d3.hierarchy(data)
+    .sum(leafValue)
+    .sort((a, b) => b.value - a.value);
+}
+
+function getContainerSize(container) {
+  const rect = container.getBoundingClientRect();
+  const fallbackRect = document.getElementById('viz-area')?.getBoundingClientRect();
+  const width = Math.max(
+    1,
+    Math.floor(rect.width || container.clientWidth || fallbackRect?.width || 800)
+  );
+  const height = Math.max(
+    1,
+    Math.floor(rect.height || container.clientHeight || fallbackRect?.height || 600)
+  );
+  return { width, height };
+}
+
+// ===== STATE =====
+let currentView = 'treemap';
+let selectedNode = null;
+let conceptSet = [];
+let treemapRoot = null;
+let sunburstRoot = null;
+let treemapCurrent = null;
+let sunburstCurrent = null;
+
+// ===== UTILS =====
+function formatCount(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(0) + 'k';
+  return n.toString();
+}
+
+function getAncestors(node) {
+  const path = [];
+  let current = node;
+  while (current) {
+    path.unshift(current);
+    current = current.parent;
+  }
+  return path;
+}
+
+// ===== TOOLTIP =====
+const tooltip = document.getElementById('tooltip');
+
+function showTooltip(event, d) {
+  const node = d.data || d;
+  const parent = d.parent ? (d.parent.data || d.parent) : null;
+  const pct = parent && parent.value > 0
+    ? ((node.value / parent.value) * 100).toFixed(1) + '%'
+    : '100%';
+
+  document.getElementById('tt-name').textContent = node.name;
+  document.getElementById('tt-count').textContent = formatCount(node.value);
+  document.getElementById('tt-pct').textContent = pct;
+  document.getElementById('tt-domain').innerHTML =
+    `<span class="tooltip-domain-dot" style="background:${domainColors[node.domain] || '#64748b'}"></span>${node.domain}`;
+  document.getElementById('tt-depth').textContent = `Level ${d.depth || 0}`;
+
+  const hasChildren = node.children && node.children.length > 0;
+  document.getElementById('tt-hint').textContent = hasChildren
+    ? 'Click to zoom in'
+    : 'Click to select';
+
+  tooltip.classList.add('visible');
+  moveTooltip(event);
+}
+
+function moveTooltip(event) {
+  const x = event.clientX + 14;
+  const y = event.clientY - 10;
+  const tw = tooltip.offsetWidth;
+  const th = tooltip.offsetHeight;
+  const ww = window.innerWidth;
+  const wh = window.innerHeight;
+  tooltip.style.left = (x + tw > ww - 10 ? x - tw - 28 : x) + 'px';
+  tooltip.style.top = (y + th > wh - 10 ? y - th : y) + 'px';
+}
+
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+}
+
+// ===== BREADCRUMB =====
+function renderBreadcrumb(path) {
+  const bc = document.getElementById('breadcrumb');
+  bc.innerHTML = '';
+  path.forEach((node, i) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'breadcrumb-item' + (i === path.length - 1 ? ' current' : '');
+    const name = (node.data || node).name;
+    item.textContent = name;
+    if (i < path.length - 1) {
+      item.setAttribute('aria-label', `Go to ${name}`);
+      item.addEventListener('click', () => {
+        if (currentView === 'treemap') zoomTreemap(node);
+        else zoomSunburst(node);
+      });
+    } else {
+      item.disabled = true;
+      item.setAttribute('aria-current', 'page');
+      item.setAttribute('aria-label', `Current location: ${name}`);
+    }
+    bc.appendChild(item);
+    if (i < path.length - 1) {
+      const sep = document.createElement('span');
+      sep.className = 'breadcrumb-sep';
+      sep.textContent = '›';
+      sep.setAttribute('aria-hidden', 'true');
+      bc.appendChild(sep);
+    }
+  });
+}
+
+// ===== SIDEBAR SELECTION =====
+function updateSelection(d) {
+  selectedNode = d;
+  const node = d.data || d;
+  const content = document.getElementById('sel-content');
+  const ancestors = getAncestors(d);
+  const parentVal = d.parent ? ((d.parent.data || d.parent).value) : node.value;
+  const pct = parentVal > 0 ? ((node.value / parentVal) * 100).toFixed(1) : '100';
+  const inSet = conceptSet.some(c => c.name === node.name);
+
+  let bcHtml = '';
+  ancestors.forEach((a, i) => {
+    const an = a.data || a;
+    bcHtml += `<span class="sel-bc-item">${i > 0 ? '<span class="arrow">›</span>' : ''}${an.name}</span>`;
+  });
+
+  const domainColor = domainColors[node.domain] || '#64748b';
+
+  content.innerHTML = `
+    <div class="sel-breadcrumb">${bcHtml}</div>
+    <div class="sel-name">${node.name}</div>
+    <div class="domain-badge" style="background: ${domainColor}22; color: ${domainColor}; border: 1px solid ${domainColor}44;">
+      <div class="dot" style="background: ${domainColor}"></div>${node.domain}
+    </div>
+    <div class="sel-stat-grid">
+      <div class="sel-stat">
+        <div class="sel-stat-label">Concepts</div>
+        <div class="sel-stat-val">${formatCount(node.value)}</div>
+      </div>
+      <div class="sel-stat">
+        <div class="sel-stat-label">% of parent</div>
+        <div class="sel-stat-val">${pct}%</div>
+      </div>
+      <div class="sel-stat">
+        <div class="sel-stat-label">Depth</div>
+        <div class="sel-stat-val">${d.depth}</div>
+      </div>
+      <div class="sel-stat">
+        <div class="sel-stat-label">Children</div>
+        <div class="sel-stat-val">${node.children ? node.children.length : 0}</div>
+      </div>
+    </div>
+    <button class="add-btn ${inSet ? 'added' : ''}" id="add-concept-btn" onclick="addToConcept()" ${inSet ? 'disabled' : ''}>
+      ${inSet
+        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Already Added`
+        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add to Concept Set`
+      }
+    </button>
+  `;
+}
+
+function addToConcept() {
+  if (!selectedNode) return;
+  const node = selectedNode.data || selectedNode;
+  if (conceptSet.some(c => c.name === node.name)) return;
+
+  conceptSet.push({ name: node.name, value: node.value, domain: node.domain });
+  renderConceptList();
+  updateSelection(selectedNode); // Refresh button state
+
+  // Flash feedback
+  const btn = document.getElementById('add-concept-btn');
+  if (btn) {
+    btn.style.transform = 'scale(0.96)';
+    setTimeout(() => { btn.style.transform = ''; }, 150);
+  }
+}
+
+function removeConcept(name) {
+  conceptSet = conceptSet.filter(c => c.name !== name);
+  renderConceptList();
+  if (selectedNode) updateSelection(selectedNode);
+}
+
+function renderConceptList() {
+  const list = document.getElementById('concepts-list');
+  const empty = document.getElementById('concepts-empty');
+  const badge = document.getElementById('concepts-count');
+
+  if (conceptSet.length === 0) {
+    list.innerHTML = '<div class="concepts-empty" id="concepts-empty">No concepts added yet</div>';
+    badge.style.display = 'none';
+  } else {
+    badge.style.display = 'inline';
+    badge.textContent = conceptSet.length;
+    list.innerHTML = conceptSet.map(c => {
+      const col = domainColors[c.domain] || '#64748b';
+      return `
+        <div class="concept-chip">
+          <div class="concept-chip-info">
+            <div class="concept-chip-name" title="${c.name}">
+              <span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:${col};margin-right:5px;vertical-align:middle"></span>${c.name}
+            </div>
+            <div class="concept-chip-count">${formatCount(c.value)} concepts &bull; ${c.domain}</div>
+          </div>
+          <button class="concept-chip-remove" onclick="removeConcept('${c.name.replace(/'/g, "\\'")}')" title="Remove" aria-label="Remove ${c.name}">&#10005;</button>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+// ===== TREEMAP =====
+let treemapSvg = null;
+let treemapG = null;
+let tmW = 0, tmH = 0;
+
+function initTreemap() {
+  const container = document.getElementById('treemap-view');
+  container.innerHTML = '';
+  const size = getContainerSize(container);
+  tmW = size.width;
+  tmH = size.height;
+
+  treemapSvg = d3.select('#treemap-view')
+    .append('svg')
+    .attr('width', tmW)
+    .attr('height', tmH);
+
+  treemapG = treemapSvg.append('g');
+
+  const hierarchy = buildHierarchy(omopData);
+
+  treemapRoot = hierarchy;
+  treemapCurrent = hierarchy;
+
+  drawTreemap(hierarchy);
+}
+
+function computeTreemap(node, w, h) {
+  const treemap = d3.treemap()
+    .size([w, h])
+    .paddingOuter(4)
+    .paddingTop(node.depth === 0 ? 0 : 22)
+    .paddingInner(2)
+    .round(true);
+
+  // Re-sum from this node down
+  const clone = node.copy();
+  clone.sum(leafValue)
+       .sort((a, b) => b.value - a.value);
+
+  treemap(clone);
+  return clone;
+}
+
+function drawTreemap(node) {
+  treemapCurrent = node;
+  treemapG.selectAll('*').remove();
+
+  const layout = computeTreemap(node, tmW, tmH);
+
+  // Flatten all leaves and groups for rendering
+  const descendants = layout.descendants().filter(d => d.depth > 0 && d.depth <= 2);
+
+  const cells = treemapG.selectAll('.treemap-cell')
+    .data(descendants)
+    .enter()
+    .append('g')
+    .attr('class', 'treemap-cell')
+    .attr('transform', d => `translate(${d.x0},${d.y0})`);
+
+  // Background rect
+  cells.append('rect')
+    .attr('width', d => Math.max(0, d.x1 - d.x0))
+    .attr('height', d => Math.max(0, d.y1 - d.y0))
+    .attr('rx', 3)
+    .attr('fill', d => {
+      const base = domainColors[d.data.domain] || '#64748b';
+      const t = d.depth === 1 ? 0.65 : 0.45;
+      return d3.color(base).copy({opacity: t}).formatRgb();
+    })
+    .attr('stroke', '#0f172a')
+    .attr('stroke-width', 1.5);
+
+  // Label for nodes with enough space
+  cells.each(function(d) {
+    const w = d.x1 - d.x0;
+    const h = d.y1 - d.y0;
+    if (w < 28 || h < 18) return;
+
+    const g = d3.select(this);
+    const name = d.data.name;
+    const count = formatCount(d.data.value || (d.value || 0));
+
+    if (h > 38 && w > 60) {
+      g.append('text')
+        .attr('x', Math.min(8, w * 0.06))
+        .attr('y', Math.min(16, h * 0.35))
+        .attr('font-size', Math.min(13, Math.max(9, w * 0.07)))
+        .attr('font-weight', '600')
+        .attr('fill', 'rgba(255,255,255,0.92)')
+        .attr('font-family', 'Inter, -apple-system, sans-serif')
+        .text(w > 120 ? name : name.substring(0, Math.floor(w / 8)));
+
+      if (h > 52) {
+        g.append('text')
+          .attr('x', Math.min(8, w * 0.06))
+          .attr('y', Math.min(30, h * 0.55))
+          .attr('font-size', Math.min(10, Math.max(8, w * 0.055)))
+          .attr('fill', 'rgba(255,255,255,0.6)')
+          .attr('font-family', 'Inter, -apple-system, sans-serif')
+          .text(count);
+      }
+    } else if (w > 40) {
+      g.append('text')
+        .attr('x', w / 2)
+        .attr('y', h / 2 + 4)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', Math.min(11, Math.max(8, Math.min(w, h) * 0.2)))
+        .attr('font-weight', '600')
+        .attr('fill', 'rgba(255,255,255,0.85)')
+        .attr('font-family', 'Inter, -apple-system, sans-serif')
+        .text(name.length > 12 ? name.substring(0, 10) + '…' : name);
+    }
+  });
+
+  // Events
+  cells
+    .on('mouseover', (event, d) => showTooltip(event, d))
+    .on('mousemove', (event) => moveTooltip(event))
+    .on('mouseout', () => hideTooltip())
+    .on('click', (event, d) => {
+      event.stopPropagation();
+      updateSelection(d);
+      const hasChildren = d.data.children && d.data.children.length > 0;
+      if (hasChildren) {
+        // Find original node in hierarchy
+        const orig = treemapRoot.descendants().find(n => n.data.name === d.data.name);
+        if (orig) {
+          zoomTreemap(orig);
+          return;
+        }
+      }
+      // Leaf: highlight
+      const ancestors = getAncestors(treemapRoot.descendants().find(n => n.data.name === d.data.name) || d);
+      renderBreadcrumb(ancestors);
+    });
+
+  // Background click to zoom out
+  treemapSvg.on('click', () => {
+    if (treemapCurrent.parent) {
+      zoomTreemap(treemapCurrent.parent);
+    }
+  });
+
+  // Breadcrumb
+  const orig = treemapRoot.descendants().find(n => n.data.name === node.data.name) || node;
+  renderBreadcrumb(getAncestors(orig));
+}
+
+function zoomTreemap(node) {
+  drawTreemap(node);
+}
+
+// ===== SUNBURST =====
+let sunburstSvg = null;
+let sbW = 0, sbH = 0, sbRadius = 0;
+let sbArcGroup = null;
+let sbArc = null;
+
+function initSunburst() {
+  const container = document.getElementById('sunburst-view');
+  container.innerHTML = '';
+  const size = getContainerSize(container);
+  sbW = size.width;
+  sbH = size.height;
+  sbRadius = Math.max(1, Math.min(sbW, sbH) / 2 - 12);
+
+  sunburstSvg = d3.select('#sunburst-view')
+    .append('svg')
+    .attr('width', sbW)
+    .attr('height', sbH);
+
+  const g = sunburstSvg.append('g')
+    .attr('transform', `translate(${sbW / 2},${sbH / 2})`);
+
+  const hierarchy = buildHierarchy(omopData);
+
+  sunburstRoot = hierarchy;
+  sunburstCurrent = hierarchy;
+
+  const partition = d3.partition().size([2 * Math.PI, sbRadius]);
+  partition(hierarchy);
+
+  const maxDepth = Math.max(1, hierarchy.height + 1);
+  const r0Scale = d => d.y0;
+  const r1Scale = d => d.y1;
+
+  sbArc = d3.arc()
+    .startAngle(d => d.x0)
+    .endAngle(d => d.x1)
+    .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.008))
+    .padRadius(sbRadius / 2)
+    .innerRadius(d => r0Scale(d))
+    .outerRadius(d => Math.max(r0Scale(d), r1Scale(d) - 2));
+
+  sbArcGroup = g;
+
+  drawSunburst(hierarchy, g, maxDepth, r0Scale, r1Scale);
+
+  // Center circle to zoom out
+  g.append('circle')
+    .attr('class', 'sunburst-center')
+    .attr('r', Math.max(18, sbRadius / maxDepth - 4))
+    .attr('fill', '#1e293b')
+    .attr('stroke', '#475569')
+    .attr('stroke-width', 1.5)
+    .style('cursor', 'pointer')
+    .on('click', () => {
+      if (sunburstCurrent.parent) {
+        zoomSunburst(sunburstCurrent.parent);
+      }
+    });
+
+  // Center label
+  g.append('text')
+    .attr('id', 'sb-center-label')
+    .attr('text-anchor', 'middle')
+    .attr('dy', '0.35em')
+    .attr('font-size', '11px')
+    .attr('fill', '#94a3b8')
+    .attr('pointer-events', 'none')
+    .text('Root');
+
+  renderBreadcrumb(getAncestors(hierarchy));
+}
+
+function drawSunburst(focusNode, g, maxDepth, r0Scale, r1Scale) {
+  sunburstCurrent = focusNode;
+  g.selectAll('.sunburst-arc').remove();
+
+  const descendants = focusNode.descendants().filter(d => d.depth > focusNode.depth);
+  const t = d3.transition().duration(300).ease(d3.easeCubicOut);
+
+  g.selectAll('.sunburst-arc')
+    .data(descendants, d => d.data.name)
+    .enter()
+    .append('g')
+    .attr('class', 'sunburst-arc')
+    .each(function(d) {
+      const el = d3.select(this);
+      const base = domainColors[d.data.domain] || '#64748b';
+      const depthRatio = (d.depth - focusNode.depth) / Math.max(1, focusNode.height);
+      const col = d3.color(base);
+      if (col) col.opacity = 0.35 + depthRatio * 0.55;
+
+      el.append('path')
+        .attr('d', sbArc(d))
+        .attr('fill', col ? col.formatRgb() : base)
+        .attr('stroke', '#0f172a')
+        .attr('stroke-width', 1)
+        .on('mouseover', (event) => showTooltip(event, d))
+        .on('mousemove', (event) => moveTooltip(event))
+        .on('mouseout', () => hideTooltip())
+        .on('click', (event) => {
+          event.stopPropagation();
+          updateSelection(d);
+          const hasChildren = d.data.children && d.data.children.length > 0;
+          if (hasChildren) {
+            const orig = sunburstRoot.descendants().find(n => n.data.name === d.data.name) || d;
+            zoomSunburst(orig);
+          } else {
+            const orig = sunburstRoot.descendants().find(n => n.data.name === d.data.name) || d;
+            renderBreadcrumb(getAncestors(orig));
+          }
+        });
+
+      // Label if arc is large enough
+      const angle = d.x1 - d.x0;
+      const r = (r0Scale(d) + r1Scale(d)) / 2;
+      if (angle * r > 20 && (r1Scale(d) - r0Scale(d)) > 10) {
+        const midAngle = (d.x0 + d.x1) / 2;
+        const x = Math.cos(midAngle - Math.PI / 2) * r;
+        const y = Math.sin(midAngle - Math.PI / 2) * r;
+
+        el.append('text')
+          .attr('transform', `translate(${x},${y}) rotate(${(midAngle * 180 / Math.PI) - 90})`)
+          .attr('text-anchor', 'middle')
+          .attr('dy', '0.35em')
+          .attr('font-size', Math.min(11, Math.max(8, angle * r * 0.12)) + 'px')
+          .attr('font-weight', '600')
+          .attr('fill', 'rgba(255,255,255,0.9)')
+          .attr('pointer-events', 'none')
+          .text(() => {
+            const name = d.data.name;
+            const maxChars = Math.floor(angle * r / 7);
+            return maxChars < 4 ? '' : (name.length > maxChars ? name.substring(0, maxChars - 1) + '…' : name);
+          });
+      }
+    });
+
+  // Update center label
+  d3.select('#sb-center-label').text(
+    focusNode.depth === 0 ? 'Root' : (focusNode.data.name.length > 10 ? focusNode.data.name.substring(0, 9) + '…' : focusNode.data.name)
+  );
+
+  renderBreadcrumb(getAncestors(focusNode));
+}
+
+function zoomSunburst(node) {
+  const maxDepth = Math.max(1, sunburstRoot.height + 1);
+  const r0Scale = d => d.y0;
+  const r1Scale = d => d.y1;
+  drawSunburst(node, sbArcGroup, maxDepth, r0Scale, r1Scale);
+}
+
+// ===== VIEW SWITCHING =====
+function switchView(view) {
+  if (view === currentView) return;
+
+  const overlay = document.getElementById('view-transition');
+  overlay.classList.add('active');
+
+  setTimeout(() => {
+    currentView = view;
+    document.getElementById('treemap-view').style.display = view === 'treemap' ? 'block' : 'none';
+    document.getElementById('sunburst-view').style.display = view === 'sunburst' ? 'block' : 'none';
+
+    document.getElementById('btn-treemap').classList.toggle('active', view === 'treemap');
+    document.getElementById('btn-sunburst').classList.toggle('active', view === 'sunburst');
+
+    const hint = document.getElementById('controls-hint');
+    if (view === 'treemap') {
+      hint.textContent = 'Click a cell to zoom in \u2022 Click breadcrumb to navigate back';
+    } else {
+      hint.textContent = 'Click an arc to zoom in \u2022 Click center circle to zoom out';
+    }
+
+    hideTooltip();
+
+    if (view === 'treemap' && !treemapSvg) initTreemap();
+    if (view === 'sunburst' && !sunburstSvg) initSunburst();
+
+    overlay.classList.remove('active');
+  }, 180);
+}
+
+// ===== RESIZE =====
+function handleResize() {
+  const activeContainer = document.getElementById(currentView === 'treemap' ? 'treemap-view' : 'sunburst-view');
+  const size = getContainerSize(activeContainer);
+  const oldW = currentView === 'treemap' ? tmW : sbW;
+  const oldH = currentView === 'treemap' ? tmH : sbH;
+  if (Math.abs(size.width - oldW) > 20 || Math.abs(size.height - oldH) > 20) {
+    if (currentView === 'treemap') sunburstSvg = null;
+    else treemapSvg = null;
+    if (currentView === 'treemap') initTreemap();
+    else initSunburst();
+  }
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  window.addEventListener('resize', () => {
+    clearTimeout(window._resizeTimer);
+    window._resizeTimer = setTimeout(handleResize, 200);
+  });
+  requestAnimationFrame(() => {
+    if (typeof d3 === 'undefined') {
+      document.getElementById('controls-hint').textContent = 'D3.js failed to load from the CDN.';
+      return;
+    }
+    initTreemap();
+  });
+});
+</script>
+</body>
+</html>

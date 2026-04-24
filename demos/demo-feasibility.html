@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feasibility Check — Real-Time Cohort Size Estimation</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  :root {
+    --bg-main: #0f172a;
+    --bg-panel: #1e293b;
+    --bg-card: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border: #475569;
+    --color-green: #22c55e;
+    --color-red: #ef4444;
+    --color-yellow: #f59e0b;
+    --color-blue: #3b82f6;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  header {
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  header a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+  }
+
+  header a:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+  }
+
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  header .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--color-blue);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* Main layout */
+  .main-layout {
+    display: flex;
+    flex: 1 1 auto;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* Left panel */
+  .left-panel {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 12px 16px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .criteria-list {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .criterion-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: default;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .criterion-card:hover {
+    border-color: #64748b;
+    background: #3b4f68;
+  }
+
+  .criterion-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+  }
+
+  .inc-exc-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    letter-spacing: 0.04em;
+  }
+
+  .inc-exc-tag.inclusion {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--color-green);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+
+  .inc-exc-tag.exclusion {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-red);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .domain-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(99, 102, 241, 0.15);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.25);
+  }
+
+  .criterion-text {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 500;
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+
+  .concept-info {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+
+  .concept-id {
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+    color: #93c5fd;
+    font-size: 10px;
+  }
+
+  .patient-count-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+  }
+
+  .patient-count-badge .count-num {
+    color: var(--text-primary);
+  }
+
+  .slider-indicator {
+    font-size: 10px;
+    color: var(--color-yellow);
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Concept selector dropdown */
+  .concept-selector {
+    width: 100%;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-family: inherit;
+    margin-top: 6px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding-right: 24px;
+  }
+
+  .concept-selector:hover {
+    border-color: var(--color-yellow);
+  }
+
+  .concept-selector:focus {
+    outline: 1px solid var(--color-yellow);
+    outline-offset: 1px;
+  }
+
+  .concept-selector option {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    padding: 4px;
+  }
+
+  .swap-indicator {
+    font-size: 10px;
+    color: var(--color-yellow);
+    margin-top: 3px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Center panel */
+  .center-panel {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .funnel-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 12px 20px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .funnel-title .hint {
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+
+  #funnel-container {
+    flex: 1 1 auto;
+    overflow: hidden;
+    padding: 16px 20px;
+  }
+
+  #funnel-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 1000;
+    max-width: 260px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .tooltip.visible {
+    opacity: 1;
+  }
+
+  .tooltip-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+
+  .tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 3px;
+  }
+
+  .tooltip-row span:last-child {
+    color: var(--text-primary);
+    font-weight: 500;
+    text-align: right;
+  }
+
+  /* Right panel */
+  .right-panel {
+    width: 288px;
+    flex-shrink: 0;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .section-block {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 12px;
+  }
+
+  /* Sliders */
+  .slider-item {
+    margin-bottom: 16px;
+  }
+
+  .slider-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .slider-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .slider-label-text {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .slider-value-display {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-yellow);
+    font-family: 'SF Mono', monospace;
+    min-width: 40px;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    appearance: none;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    margin-bottom: 6px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--color-yellow);
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.3);
+  }
+
+  input[type="range"]:focus-visible {
+    outline: 2px solid var(--color-yellow);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  .slider-count-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+
+  .slider-count-hint span {
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  /* Mini histogram */
+  .mini-histogram {
+    margin-top: 4px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+
+  /* Summary */
+  .cohort-summary {
+    text-align: center;
+    padding: 16px;
+  }
+
+  .cohort-number {
+    font-size: 52px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 6px;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.3s;
+    letter-spacing: -0.02em;
+  }
+
+  .cohort-number.sufficient { color: var(--color-green); }
+  .cohort-number.caution { color: var(--color-yellow); }
+  .cohort-number.insufficient { color: var(--color-red); }
+
+  .cohort-pct {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+
+  .cohort-status {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-bottom: 4px;
+  }
+
+  .cohort-status.sufficient {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--color-green);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+
+  .cohort-status.caution {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--color-yellow);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+
+  .cohort-status.insufficient {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-red);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  /* Sensitivity bars */
+  .sensitivity-item {
+    margin-bottom: 10px;
+  }
+
+  .sensitivity-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .sensitivity-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .sensitivity-name {
+    font-size: 11px;
+    color: var(--text-secondary);
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sensitivity-pct {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .sensitivity-bar-track {
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .sensitivity-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+
+  /* Bottom bar */
+  .bottom-bar {
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border);
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .kbd {
+    display: inline-block;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: monospace;
+    font-size: 10px;
+    color: var(--text-primary);
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    html, body { overflow: auto; height: auto; }
+    .main-layout {
+      flex-direction: column;
+      overflow: visible;
+    }
+    .left-panel, .right-panel {
+      width: 100%;
+      max-height: 400px;
+    }
+    .center-panel {
+      min-height: 480px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="demo-all.html">&#8592; All Demos</a>
+  <h1>Feasibility Check &mdash; Real-Time Cohort Size Estimation</h1>
+  <span class="badge">LEADER / NCT01179048</span>
+</header>
+
+<div class="main-layout">
+  <!-- Left Panel: Eligibility Criteria -->
+  <div class="left-panel">
+    <div class="panel-title">Eligibility Criteria</div>
+    <div class="criteria-list" id="criteria-list">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- Center Panel: Funnel -->
+  <div class="center-panel">
+    <div class="funnel-title">
+      <span>Cohort Attrition Funnel</span>
+      <span class="hint">Hover rows for details</span>
+    </div>
+    <div id="funnel-container">
+      <svg id="funnel-svg"></svg>
+    </div>
+  </div>
+
+  <!-- Right Panel: Controls & Summary -->
+  <div class="right-panel">
+
+    <!-- Threshold Sliders -->
+    <div class="section-block">
+      <div class="section-label">Threshold Sliders</div>
+
+      <!-- HbA1c -->
+      <div class="slider-item">
+        <div class="slider-label-row">
+          <span class="slider-label-text">HbA1c threshold</span>
+          <span class="slider-value-display" id="hba1c-val">7.0%</span>
+        </div>
+        <input type="range" id="hba1c-slider" min="5.0" max="10.0" step="0.5" value="7.0"
+               aria-label="HbA1c threshold">
+        <div class="mini-histogram">
+          <svg id="hist-hba1c" width="256" height="64" style="display:block;"></svg>
+        </div>
+        <div class="slider-count-hint">HbA1c &ge; <span id="hba1c-count-val">7.0%</span> &rarr; <span id="hba1c-patient-count">72,300</span> patients</div>
+      </div>
+
+      <!-- Age -->
+      <div class="slider-item">
+        <div class="slider-label-row">
+          <span class="slider-label-text">Age threshold</span>
+          <span class="slider-value-display" id="age-val">50</span>
+        </div>
+        <input type="range" id="age-slider" min="18" max="80" step="5" value="50"
+               aria-label="Age threshold">
+        <div class="mini-histogram">
+          <svg id="hist-age" width="256" height="64" style="display:block;"></svg>
+        </div>
+        <div class="slider-count-hint">Age &ge; <span id="age-count-val">50</span> &rarr; <span id="age-patient-count">1,150,000</span> patients</div>
+      </div>
+
+      <!-- eGFR -->
+      <div class="slider-item">
+        <div class="slider-label-row">
+          <span class="slider-label-text">eGFR threshold</span>
+          <span class="slider-value-display" id="egfr-val">30</span>
+        </div>
+        <input type="range" id="egfr-slider" min="0" max="90" step="5" value="30"
+               aria-label="eGFR threshold">
+        <div class="mini-histogram">
+          <svg id="hist-egfr" width="256" height="64" style="display:block;"></svg>
+        </div>
+        <div class="slider-count-hint">eGFR &ge; <span id="egfr-count-val">30</span> &rarr; <span id="egfr-patient-count">1,890,000</span> patients</div>
+      </div>
+    </div>
+
+    <!-- Cohort Summary -->
+    <div class="section-block cohort-summary">
+      <div class="section-label" style="text-align:left;">Cohort Summary</div>
+      <div class="cohort-number sufficient" id="final-count">27,400</div>
+      <div class="cohort-pct" id="final-pct">1.19% of CDM (2,300,000)</div>
+      <div class="cohort-status sufficient" id="cohort-status-badge">Sufficient for TTE analysis</div>
+    </div>
+
+    <!-- Sensitivity Analysis -->
+    <div class="section-block">
+      <div class="section-label">Marginal Impact (Sensitivity)</div>
+      <div id="sensitivity-bars">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Bottom Bar -->
+<div class="bottom-bar">
+  <span>Adjust sliders or swap concepts to explore feasibility before finalizing protocol</span>
+  <span>
+    <kbd class="kbd">Tab</kbd> navigate &nbsp;
+    <kbd class="kbd">&#8592;&#8594;</kbd> adjust &nbsp;
+    <kbd class="kbd">Hover</kbd> funnel details
+  </span>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ─────────────────────────────────────────────
+// DATA & MODEL
+// ─────────────────────────────────────────────
+const TOTAL_CDM = 2300000;
+
+const CRITERIA = [
+  {
+    id: 1, type: 'inclusion', domain: 'Condition',
+    text: 'Type 2 diabetes mellitus',
+    hasSlider: false,
+    selectedAlt: 0,
+    alternatives: [
+      { id: 'c1a', name: 'Type 2 diabetes mellitus', conceptId: 201826, rate: 0.08 },
+      { id: 'c1b', name: 'T2DM without complication', conceptId: 443238, rate: 0.039 },
+      { id: 'c1c', name: 'Diabetes mellitus (parent)', conceptId: 4008576, rate: 0.12 },
+      { id: 'c1d', name: 'T2DM with nephropathy', conceptId: 443731, rate: 0.009 },
+    ]
+  },
+  {
+    id: 2, type: 'inclusion', domain: 'Measurement',
+    text: 'HbA1c \u2265 7.0% (glycosylated hemoglobin)',
+    hasSlider: 'hba1c',
+    selectedAlt: 0,
+    alternatives: [
+      { id: 'c2a', name: 'Hemoglobin A1c (glycosylated)', conceptId: 3004410, rateMul: 1.0 },
+      { id: 'c2b', name: 'HbA1c in blood (%)', conceptId: 3034639, rateMul: 0.92 },
+      { id: 'c2c', name: 'HbA1c in blood (mmol/mol)', conceptId: 40762499, rateMul: 0.85 },
+    ]
+  },
+  {
+    id: 3, type: 'inclusion', domain: 'Observation',
+    text: 'Age \u2265 50 years at index date',
+    hasSlider: 'age',
+    selectedAlt: 0,
+    alternatives: [
+      { id: 'c3a', name: '(Derived from person.year_of_birth)', conceptId: null, rateMul: 1.0 },
+    ]
+  },
+  {
+    id: 4, type: 'inclusion', domain: 'Condition',
+    text: 'Established CVD or high CV risk',
+    hasSlider: false,
+    selectedAlt: 0,
+    alternatives: [
+      { id: 'c4a', name: 'Coronary arteriosclerosis', conceptId: 4185932, rate: 0.54 },
+      { id: 'c4b', name: 'Ischemic heart disease', conceptId: 4029488, rate: 0.48 },
+      { id: 'c4c', name: 'Cardiovascular disease (parent)', conceptId: 4011078, rate: 0.62 },
+      { id: 'c4d', name: 'Acute myocardial infarction', conceptId: 4329847, rate: 0.18 },
+    ]
+  },
+  {
+    id: 5, type: 'inclusion', domain: 'Measurement',
+    text: 'eGFR \u2265 30 mL/min/1.73m\u00b2',
+    hasSlider: 'egfr',
+    selectedAlt: 0,
+    alternatives: [
+      { id: 'c5a', name: 'GFR/BSA (estimated)', conceptId: 3049187, rateMul: 1.0 },
+      { id: 'c5b', name: 'Creatinine-based eGFR', conceptId: 3016723, rateMul: 0.95 },
+      { id: 'c5c', name: 'Cystatin C eGFR', conceptId: 3027361, rateMul: 0.78 },
+    ]
+  },
+  {
+    id: 6, type: 'exclusion', domain: 'Condition',
+    text: 'Type 1 diabetes mellitus',
+    hasSlider: false,
+    selectedAlt: 0,
+    alternatives: [
+      { id: 'c6a', name: 'Diabetes mellitus type 1', conceptId: 201254, rate: 0.02 },
+      { id: 'c6b', name: 'T1DM with ketoacidosis', conceptId: 443238, rate: 0.005 },
+      { id: 'c6c', name: 'Insulin-dependent diabetes', conceptId: 4008576, rate: 0.025 },
+    ]
+  },
+  {
+    id: 7, type: 'exclusion', domain: 'Drug',
+    text: 'Rapid-acting insulin within 90 days',
+    hasSlider: false,
+    selectedAlt: 0,
+    alternatives: [
+      { id: 'c7a', name: 'Insulin, rapid acting', conceptId: 1567198, rate: 0.06 },
+      { id: 'c7b', name: 'Any insulin', conceptId: 1516766, rate: 0.12 },
+      { id: 'c7c', name: 'Insulin lispro specifically', conceptId: 1583722, rate: 0.03 },
+    ]
+  }
+];
+
+// Compute intermediate cohort counts for the funnel, given slider values
+function computeWaterfallSteps(hba1c, age, egfr) {
+  const steps = [];
+  let n = TOTAL_CDM;
+
+  steps.push({ label: 'Total CDM Population', count: n, excluded: 0, type: 'total' });
+
+  CRITERIA.forEach(c => {
+    const alt = c.alternatives[c.selectedAlt];
+    let rate = alt.rate !== undefined ? alt.rate : 1.0;
+
+    // For slider-enabled criteria, compute rate from slider value then apply rateMul
+    if (c.hasSlider === 'hba1c') {
+      const baseRate = Math.max(0.05, Math.min(0.80, 0.85 - 0.092 * hba1c));
+      rate = baseRate * (alt.rateMul !== undefined ? alt.rateMul : 1.0);
+    } else if (c.hasSlider === 'age') {
+      rate = Math.max(0.05, Math.min(1.0, 1.1 - (age - 18) / 72));
+    } else if (c.hasSlider === 'egfr') {
+      const baseRate = Math.max(0.1, Math.min(1.0, 1.0 - egfr * 0.0072));
+      rate = baseRate * (alt.rateMul !== undefined ? alt.rateMul : 1.0);
+    }
+
+    const isExclusion = c.type === 'exclusion';
+    let stepCount, excluded;
+    if (isExclusion) {
+      excluded = Math.round(n * rate);
+      stepCount = n - excluded;
+    } else {
+      stepCount = Math.round(n * rate);
+      excluded = n - stepCount;
+    }
+
+    steps.push({
+      label: alt.name,
+      count: stepCount,
+      excluded: excluded,
+      type: c.type,
+      criterionId: c.id,
+      conceptId: alt.conceptId,
+    });
+    n = stepCount;
+  });
+
+  return steps;
+}
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let state = { hba1c: 7.0, age: 50, egfr: 30 };
+let animatedFinalCount = 27400;
+
+// ─────────────────────────────────────────────
+// LEFT PANEL: CRITERIA
+// ─────────────────────────────────────────────
+function renderCriteriaList() {
+  const container = document.getElementById('criteria-list');
+  container.innerHTML = '';
+
+  // Compute initial steps once for badge initialization
+  const initSteps = computeWaterfallSteps(state.hba1c, state.age, state.egfr);
+
+  CRITERIA.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'criterion-card';
+
+    const header = document.createElement('div');
+    header.className = 'criterion-header';
+
+    const tag = document.createElement('span');
+    tag.className = `inc-exc-tag ${c.type}`;
+    tag.textContent = c.type === 'inclusion' ? 'INCL' : 'EXCL';
+    header.appendChild(tag);
+
+    const domainBadge = document.createElement('span');
+    domainBadge.className = 'domain-badge';
+    domainBadge.textContent = c.domain;
+    header.appendChild(domainBadge);
+    card.appendChild(header);
+
+    const text = document.createElement('div');
+    text.className = 'criterion-text';
+    text.textContent = c.text;
+    card.appendChild(text);
+
+    // Concept selector: show dropdown if 2+ alternatives, otherwise show static info
+    if (c.alternatives && c.alternatives.length > 1) {
+      const select = document.createElement('select');
+      select.className = 'concept-selector';
+      select.id = `concept-select-${c.id}`;
+      select.setAttribute('aria-label', `Select concept for ${c.text}`);
+
+      c.alternatives.forEach((alt, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = alt.conceptId
+          ? `${alt.name} (#${alt.conceptId})`
+          : alt.name;
+        if (idx === c.selectedAlt) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      select.addEventListener('change', (e) => {
+        c.selectedAlt = parseInt(e.target.value);
+        update(true);
+      });
+      card.appendChild(select);
+
+      const swapIndicator = document.createElement('div');
+      swapIndicator.className = 'swap-indicator';
+      swapIndicator.innerHTML = `<svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#f59e0b" opacity="0.85"/></svg> Swappable concept`;
+      card.appendChild(swapIndicator);
+    } else {
+      // Single concept — static display
+      const conceptInfo = document.createElement('div');
+      conceptInfo.className = 'concept-info';
+      const alt = c.alternatives[0];
+      if (alt.conceptId) {
+        conceptInfo.innerHTML = `${alt.name} &nbsp;<span class="concept-id">#${alt.conceptId}</span>`;
+      } else {
+        conceptInfo.textContent = alt.name;
+      }
+      card.appendChild(conceptInfo);
+    }
+
+    const countBadge = document.createElement('div');
+    countBadge.className = 'patient-count-badge';
+    countBadge.id = `criterion-badge-${c.id}`;
+    const defaultStep = initSteps.find(s => s.criterionId === c.id);
+    const initCount = defaultStep ? formatNum(defaultStep.count) : '—';
+    countBadge.innerHTML = `<span class="count-num">${initCount}</span> patients match`;
+    card.appendChild(countBadge);
+
+    if (c.hasSlider) {
+      const indicator = document.createElement('div');
+      indicator.className = 'slider-indicator';
+      indicator.innerHTML = `<svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#f59e0b" opacity="0.85"/></svg> Adjustable via slider`;
+      card.appendChild(indicator);
+    }
+
+    container.appendChild(card);
+  });
+}
+
+function updateCriteriaBadges(steps) {
+  CRITERIA.forEach(c => {
+    const badge = document.getElementById(`criterion-badge-${c.id}`);
+    if (!badge) return;
+    const step = steps.find(s => s.criterionId === c.id);
+    if (step) {
+      badge.innerHTML = `<span class="count-num">${formatNum(step.count)}</span> patients match`;
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// MINI HISTOGRAMS
+// ─────────────────────────────────────────────
+function buildHistogramData(type) {
+  const bins = 20;
+  const data = [];
+  if (type === 'hba1c') {
+    for (let i = 0; i < bins; i++) {
+      const x = 5.0 + i * 0.25;
+      const freq = Math.exp(-0.5 * Math.pow((x - 6.8) / 0.9, 2)) + 0.1 * Math.exp(-0.3 * (x - 7.5));
+      data.push({ bin: x, freq: Math.max(0, freq) });
+    }
+  } else if (type === 'age') {
+    for (let i = 0; i < bins; i++) {
+      const x = 18 + i * (62 / bins);
+      const freq = x < 70 ? 1.0 - 0.1 * Math.random() : Math.max(0.1, 1.0 - (x - 70) * 0.06);
+      data.push({ bin: x, freq });
+    }
+  } else if (type === 'egfr') {
+    for (let i = 0; i < bins; i++) {
+      const x = 0 + i * (90 / bins);
+      const freq = Math.exp(-0.5 * Math.pow((x - 68) / 20, 2));
+      data.push({ bin: x, freq: Math.max(0.02, freq) });
+    }
+  }
+  const maxFreq = Math.max(...data.map(d => d.freq));
+  return data.map(d => ({ bin: d.bin, freq: d.freq / maxFreq }));
+}
+
+function drawMiniHistogram(svgId, type, thresholdValue, minVal, maxVal) {
+  const svgEl = document.getElementById(svgId);
+  const W = svgEl.parentElement.clientWidth || 256;
+  svgEl.setAttribute('width', W);
+  const H = 64;
+  const margin = { top: 5, right: 10, bottom: 20, left: 10 };
+  const w = W - margin.left - margin.right;
+  const h = H - margin.top - margin.bottom;
+
+  d3.select(svgEl).selectAll('*').remove();
+
+  const data = buildHistogramData(type);
+  const svg = d3.select(svgEl)
+    .attr('height', H)
+    .append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const xScale = d3.scaleLinear().domain([minVal, maxVal]).range([0, w]);
+  const yScale = d3.scaleLinear().domain([0, 1]).range([h, 0]);
+  const binW = w / data.length;
+
+  // Draw bars with two-toned coloring
+  svg.selectAll('.hist-bar')
+    .data(data)
+    .enter().append('rect')
+    .attr('class', 'hist-bar')
+    .attr('x', (d, i) => i * binW + 1)
+    .attr('y', d => yScale(d.freq))
+    .attr('width', Math.max(1, binW - 1))
+    .attr('height', d => h - yScale(d.freq))
+    .attr('fill', d => {
+      const normalized = (d.bin - minVal) / (maxVal - minVal);
+      const threshNorm = (thresholdValue - minVal) / (maxVal - minVal);
+      return normalized >= threshNorm ? 'rgba(59,130,246,0.65)' : 'rgba(100,116,139,0.3)';
+    })
+    .attr('rx', 1);
+
+  // Threshold line
+  const tx = xScale(thresholdValue);
+  svg.append('line')
+    .attr('x1', tx).attr('x2', tx)
+    .attr('y1', -2).attr('y2', h + 3)
+    .attr('stroke', '#f59e0b')
+    .attr('stroke-width', 2)
+    .attr('stroke-dasharray', '3,2');
+
+  // Triangle marker
+  svg.append('polygon')
+    .attr('points', `${tx},${h + 3} ${tx - 4},${h + 11} ${tx + 4},${h + 11}`)
+    .attr('fill', '#f59e0b');
+
+  // Min/max labels
+  svg.append('text')
+    .attr('x', 0).attr('y', h + 16)
+    .attr('fill', '#64748b').attr('font-size', 9)
+    .text(minVal);
+
+  svg.append('text')
+    .attr('x', w).attr('y', h + 16)
+    .attr('text-anchor', 'end').attr('fill', '#64748b').attr('font-size', 9)
+    .text(maxVal);
+}
+
+// ─────────────────────────────────────────────
+// FUNNEL CHART (D3) — Vertical centered funnel
+// Each bar's width = (count / maxCount) * maxBarWidth, centered
+// Color gradient: blue (top) → green (final)
+// ─────────────────────────────────────────────
+function renderFunnel(steps, animate) {
+  const container = document.getElementById('funnel-container');
+  const svgEl = document.getElementById('funnel-svg');
+  const W = container.clientWidth;
+  const H = container.clientHeight;
+
+  const svg = d3.select(svgEl)
+    .attr('width', W)
+    .attr('height', H);
+
+  // Clear on first render; use update pattern afterwards
+  svg.selectAll('*').remove();
+
+  const n = steps.length;
+
+  // Layout: center x, vertical rows
+  const marginTop = 8;
+  const marginBottom = 8;
+  const marginLeft = 10;
+  const marginRight = 10;
+
+  const usableW = W - marginLeft - marginRight;
+  const usableH = H - marginTop - marginBottom;
+
+  const rowH = usableH / n;
+  const barH = Math.max(18, Math.min(44, rowH * 0.52));
+  const rowGap = rowH - barH;
+
+  // Max bar width: center column takes up ~55% of width
+  // Labels and counts take the rest
+  const labelAreaW = 170;
+  const countAreaW = 110;
+  const maxBarW = Math.max(80, usableW - labelAreaW - countAreaW);
+  const centerX = marginLeft + labelAreaW + maxBarW / 2;
+
+  const maxCount = steps[0].count;
+
+  // Color interpolator: from blue (step 0) to green (final step)
+  const colorScale = d3.scaleSequential()
+    .domain([0, n - 1])
+    .interpolator(d3.interpolateRgb('#3b82f6', '#22c55e'));
+
+  const g = svg.append('g');
+
+  const tooltip = document.getElementById('tooltip');
+
+  steps.forEach((d, i) => {
+    const barW = Math.max(4, (d.count / maxCount) * maxBarW);
+    const barX = centerX - barW / 2;
+    const barY = marginTop + i * rowH + (rowH - barH) / 2;
+    const midY = barY + barH / 2;
+    const barColor = colorScale(i);
+
+    // Excluded annotation (shown as small red badge on right side of bar)
+    if (d.excluded > 0) {
+      const excludedPct = ((d.excluded / (d.count + d.excluded)) * 100).toFixed(0);
+      const exBadgeX = centerX + maxBarW / 2 + 8;
+      const exBadgeW = 64;
+
+      const exG = g.append('g').attr('class', 'ex-badge');
+
+      exG.append('rect')
+        .attr('x', exBadgeX)
+        .attr('y', midY - 10)
+        .attr('width', exBadgeW)
+        .attr('height', 20)
+        .attr('rx', 4)
+        .attr('fill', 'rgba(239,68,68,0.12)')
+        .attr('stroke', 'rgba(239,68,68,0.3)')
+        .attr('stroke-width', 1);
+
+      exG.append('text')
+        .attr('x', exBadgeX + exBadgeW / 2)
+        .attr('y', midY - 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', 9.5)
+        .attr('font-weight', 700)
+        .attr('fill', '#fca5a5')
+        .text(`-${formatNumShort(d.excluded)}`);
+
+      exG.append('text')
+        .attr('x', exBadgeX + exBadgeW / 2)
+        .attr('y', midY + 8)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', 8)
+        .attr('fill', 'rgba(252,165,165,0.7)')
+        .text(`${excludedPct}% excl.`);
+    }
+
+    // Connector line from previous bar's bottom to this bar's top
+    if (i > 0) {
+      const prevBarW = Math.max(4, (steps[i - 1].count / maxCount) * maxBarW);
+      const prevBarY = marginTop + (i - 1) * rowH + (rowH - barH) / 2;
+
+      // Draw tapered trapezoid connector using polygon
+      const prevBarBottom = prevBarY + barH;
+      const thisBarTop = barY;
+      const halfPrev = prevBarW / 2;
+      const halfCurr = barW / 2;
+
+      if (thisBarTop > prevBarBottom + 1) {
+        g.append('polygon')
+          .attr('points', [
+            `${centerX - halfPrev},${prevBarBottom}`,
+            `${centerX + halfPrev},${prevBarBottom}`,
+            `${centerX + halfCurr},${thisBarTop}`,
+            `${centerX - halfCurr},${thisBarTop}`
+          ].join(' '))
+          .attr('fill', `${barColor}22`)
+          .attr('stroke', `${barColor}44`)
+          .attr('stroke-width', 0.5);
+      }
+    }
+
+    // Main bar (rounded rect)
+    const barRect = g.append('rect')
+      .attr('class', 'funnel-bar')
+      .attr('rx', 5)
+      .attr('ry', 5)
+      .attr('y', barY)
+      .attr('height', barH)
+      .attr('fill', barColor)
+      .attr('opacity', 0.88);
+
+    if (animate && i > 0) {
+      barRect
+        .attr('x', centerX)
+        .attr('width', 0)
+        .transition().duration(280).delay(i * 30).ease(d3.easeCubicOut)
+        .attr('x', barX)
+        .attr('width', barW);
+    } else {
+      barRect.attr('x', barX).attr('width', barW);
+    }
+
+    // Glow / highlight for final bar
+    if (i === n - 1) {
+      g.append('rect')
+        .attr('x', barX - 2)
+        .attr('y', barY - 2)
+        .attr('width', barW + 4)
+        .attr('height', barH + 4)
+        .attr('rx', 7)
+        .attr('fill', 'none')
+        .attr('stroke', '#22c55e')
+        .attr('stroke-width', 1.5)
+        .attr('opacity', 0.5);
+    }
+
+    // Left label
+    const labelX = marginLeft + labelAreaW - 10;
+    const isExcl = d.type === 'exclusion';
+    const labelColor = i === n - 1 ? '#86efac' : isExcl ? '#fca5a5' : '#cbd5e1';
+
+    // Step number pill
+    g.append('text')
+      .attr('x', labelX - 26)
+      .attr('y', midY)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .attr('font-size', 9)
+      .attr('font-weight', 600)
+      .attr('fill', '#64748b')
+      .text(i === 0 ? '•' : `${i}`);
+
+    // Label text (truncated) — uses step.label which is alt.name from computeWaterfallSteps
+    const maxLabelChars = 20;
+    const labelText = d.label.length > maxLabelChars ? d.label.slice(0, maxLabelChars - 1) + '…' : d.label;
+    g.append('text')
+      .attr('x', labelX)
+      .attr('y', midY)
+      .attr('text-anchor', 'end')
+      .attr('dominant-baseline', 'middle')
+      .attr('font-size', 11)
+      .attr('font-weight', i === 0 || i === n - 1 ? 600 : 400)
+      .attr('fill', labelColor)
+      .append('title').text(d.label); // full text as browser tooltip
+
+    // Re-append the visible text (can't chain after title append)
+    g.append('text')
+      .attr('x', labelX)
+      .attr('y', midY)
+      .attr('text-anchor', 'end')
+      .attr('dominant-baseline', 'middle')
+      .attr('font-size', 11)
+      .attr('font-weight', i === 0 || i === n - 1 ? 600 : 400)
+      .attr('fill', labelColor)
+      .text(labelText);
+
+    // Right count label
+    const countX = centerX + maxBarW / 2 + 8 + 64 + 10;
+    const pctOfCDM = ((d.count / TOTAL_CDM) * 100);
+    const pctStr = pctOfCDM < 1 ? pctOfCDM.toFixed(2) + '%' : pctOfCDM.toFixed(1) + '%';
+
+    g.append('text')
+      .attr('x', countX)
+      .attr('y', midY - 3)
+      .attr('text-anchor', 'start')
+      .attr('dominant-baseline', 'middle')
+      .attr('font-size', 12)
+      .attr('font-weight', 700)
+      .attr('fill', i === n - 1 ? '#86efac' : '#e2e8f0')
+      .attr('font-family', "'SF Mono', monospace")
+      .text(formatNum(d.count));
+
+    g.append('text')
+      .attr('x', countX)
+      .attr('y', midY + 10)
+      .attr('text-anchor', 'start')
+      .attr('dominant-baseline', 'middle')
+      .attr('font-size', 9)
+      .attr('fill', '#64748b')
+      .text(pctStr + ' of CDM');
+
+    if (i === n - 1) {
+      g.append('text')
+        .attr('x', countX)
+        .attr('y', midY + 22)
+        .attr('text-anchor', 'start')
+        .attr('dominant-baseline', 'middle')
+        .attr('font-size', 9)
+        .attr('font-weight', 700)
+        .attr('fill', '#22c55e')
+        .text('FINAL COHORT');
+    }
+
+    // Invisible hit area for tooltip
+    g.append('rect')
+      .attr('x', marginLeft)
+      .attr('y', barY - rowGap / 2)
+      .attr('width', usableW)
+      .attr('height', rowH)
+      .attr('fill', 'transparent')
+      .style('cursor', 'default')
+      .on('mouseenter', function(event) {
+        const excluded = d.excluded || 0;
+        const pct = d.count === TOTAL_CDM ? '100.00' : ((d.count / TOTAL_CDM) * 100).toFixed(2);
+        const excPct = (d.count + excluded) > 0 ? ((excluded / (d.count + excluded)) * 100).toFixed(1) : 0;
+        const retainPct = (d.count + excluded) > 0 ? ((d.count / (d.count + excluded)) * 100).toFixed(1) : 100;
+        const conceptIdLine = d.conceptId ? `<div class="tooltip-row"><span>Concept ID</span><span>#${d.conceptId}</span></div>` : '';
+
+        tooltip.innerHTML = `
+          <div class="tooltip-title">${d.label}</div>
+          ${conceptIdLine}
+          <div class="tooltip-row"><span>Remaining</span><span>${formatNum(d.count)}</span></div>
+          ${excluded > 0 ? `<div class="tooltip-row"><span>Excluded</span><span>${formatNum(excluded)}</span></div>` : ''}
+          ${excluded > 0 ? `<div class="tooltip-row"><span>Retention rate</span><span>${retainPct}%</span></div>` : ''}
+          ${excluded > 0 ? `<div class="tooltip-row"><span>Exclusion rate</span><span>${excPct}%</span></div>` : ''}
+          <div class="tooltip-row"><span>% of CDM</span><span>${pct}%</span></div>
+        `;
+        tooltip.classList.add('visible');
+      })
+      .on('mousemove', function(event) {
+        tooltip.style.left = (event.clientX + 16) + 'px';
+        tooltip.style.top = (event.clientY - 12) + 'px';
+      })
+      .on('mouseleave', function() {
+        tooltip.classList.remove('visible');
+      });
+  });
+}
+
+// ─────────────────────────────────────────────
+// COHORT SUMMARY
+// ─────────────────────────────────────────────
+let countAnimTimer = null;
+
+function animateCounter(targetValue) {
+  if (countAnimTimer) clearInterval(countAnimTimer);
+  const startValue = animatedFinalCount;
+  const duration = 300;
+  const steps = 20;
+  const stepDuration = duration / steps;
+  let step = 0;
+  countAnimTimer = setInterval(() => {
+    step++;
+    const t = step / steps;
+    animatedFinalCount = Math.round(startValue + (targetValue - startValue) * t);
+    document.getElementById('final-count').textContent = formatNum(animatedFinalCount);
+    if (step >= steps) {
+      clearInterval(countAnimTimer);
+      animatedFinalCount = targetValue;
+      document.getElementById('final-count').textContent = formatNum(targetValue);
+    }
+  }, stepDuration);
+}
+
+function updateCohortSummary(finalCount) {
+  animateCounter(finalCount);
+
+  const pct = ((finalCount / TOTAL_CDM) * 100).toFixed(2);
+  document.getElementById('final-pct').textContent = `${pct}% of CDM (${formatNum(TOTAL_CDM)})`;
+
+  const numEl = document.getElementById('final-count');
+  const badgeEl = document.getElementById('cohort-status-badge');
+  numEl.className = 'cohort-number';
+  badgeEl.className = 'cohort-status';
+
+  if (finalCount >= 10000) {
+    numEl.classList.add('sufficient');
+    badgeEl.classList.add('sufficient');
+    badgeEl.textContent = 'Sufficient for TTE analysis';
+  } else if (finalCount >= 1000) {
+    numEl.classList.add('caution');
+    badgeEl.classList.add('caution');
+    badgeEl.textContent = 'Consider relaxing criteria';
+  } else {
+    numEl.classList.add('insufficient');
+    badgeEl.classList.add('insufficient');
+    badgeEl.textContent = 'Insufficient — adjust thresholds';
+  }
+}
+
+// ─────────────────────────────────────────────
+// SENSITIVITY BARS
+// ─────────────────────────────────────────────
+function updateSensitivityBars(steps) {
+  const items = steps.slice(1).map(s => {
+    const idx = steps.indexOf(s);
+    const prev = steps[idx - 1] || steps[0];
+    const prevCount = prev.count;
+    const excl = s.excluded || 0;
+    const rate = prevCount > 0 ? (excl / prevCount) : 0;
+    return { label: s.label, excluded: excl, rate };
+  });
+
+  const sorted = [...items].sort((a, b) => b.rate - a.rate);
+  const maxRate = sorted[0]?.rate || 1;
+
+  const container = document.getElementById('sensitivity-bars');
+  container.innerHTML = '';
+
+  const colors = [
+    '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#14b8a6', '#3b82f6'
+  ];
+
+  sorted.slice(0, 6).forEach((item, idx) => {
+    const pct = (item.rate * 100).toFixed(1);
+    const barPct = maxRate > 0 ? (item.rate / maxRate) * 100 : 0;
+
+    const div = document.createElement('div');
+    div.className = 'sensitivity-item';
+    div.innerHTML = `
+      <div class="sensitivity-row">
+        <span class="sensitivity-name" title="${item.label}">${item.label}</span>
+        <span class="sensitivity-pct">${pct}%</span>
+      </div>
+      <div class="sensitivity-bar-track">
+        <div class="sensitivity-bar-fill"
+             style="width:${barPct}%;background:${colors[idx % colors.length]};"></div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// ─────────────────────────────────────────────
+// SLIDER COUNT HINTS
+// ─────────────────────────────────────────────
+function updateSliderHints() {
+  const { hba1c, age, egfr } = state;
+
+  // HbA1c hint — apply rateMul from selected alternative for criterion 2
+  const hba1cCrit = CRITERIA.find(c => c.id === 2);
+  const hba1cAlt = hba1cCrit ? hba1cCrit.alternatives[hba1cCrit.selectedAlt] : null;
+  const hba1cRateMul = hba1cAlt && hba1cAlt.rateMul !== undefined ? hba1cAlt.rateMul : 1.0;
+  const t2dmPop = Math.round(TOTAL_CDM * 0.08);
+  const hba1cBaseRate = Math.max(0.05, Math.min(0.80, 0.85 - 0.092 * hba1c));
+  const hba1cPop = Math.round(t2dmPop * hba1cBaseRate * hba1cRateMul);
+  document.getElementById('hba1c-val').textContent = `${hba1c.toFixed(1)}%`;
+  document.getElementById('hba1c-count-val').textContent = `${hba1c.toFixed(1)}%`;
+  document.getElementById('hba1c-patient-count').textContent = formatNum(hba1cPop);
+
+  const ageRate = Math.max(0.05, Math.min(1.0, 1.1 - (age - 18) / 72));
+  const agePop = Math.round(TOTAL_CDM * ageRate);
+  document.getElementById('age-val').textContent = age;
+  document.getElementById('age-count-val').textContent = age;
+  document.getElementById('age-patient-count').textContent = formatNum(agePop);
+
+  // eGFR hint — apply rateMul from selected alternative for criterion 5
+  const egfrCrit = CRITERIA.find(c => c.id === 5);
+  const egfrAlt = egfrCrit ? egfrCrit.alternatives[egfrCrit.selectedAlt] : null;
+  const egfrRateMul = egfrAlt && egfrAlt.rateMul !== undefined ? egfrAlt.rateMul : 1.0;
+  const egfrBaseRate = Math.max(0.1, Math.min(1.0, 1.0 - egfr * 0.0072));
+  const egfrPop = Math.round(TOTAL_CDM * egfrBaseRate * egfrRateMul);
+  document.getElementById('egfr-val').textContent = egfr;
+  document.getElementById('egfr-count-val').textContent = egfr;
+  document.getElementById('egfr-patient-count').textContent = formatNum(egfrPop);
+}
+
+// ─────────────────────────────────────────────
+// MAIN UPDATE FUNCTION
+// ─────────────────────────────────────────────
+function update(animate = true) {
+  const steps = computeWaterfallSteps(state.hba1c, state.age, state.egfr);
+  const finalCount = steps[steps.length - 1].count;
+
+  renderFunnel(steps, animate);
+  updateCohortSummary(finalCount);
+  updateSensitivityBars(steps);
+  updateCriteriaBadges(steps);
+  updateSliderHints();
+
+  drawMiniHistogram('hist-hba1c', 'hba1c', state.hba1c, 5.0, 10.0);
+  drawMiniHistogram('hist-age', 'age', state.age, 18, 80);
+  drawMiniHistogram('hist-egfr', 'egfr', state.egfr, 0, 90);
+}
+
+// ─────────────────────────────────────────────
+// SLIDER WIRING
+// ─────────────────────────────────────────────
+document.getElementById('hba1c-slider').addEventListener('input', function() {
+  state.hba1c = parseFloat(this.value);
+  update(true);
+});
+
+document.getElementById('age-slider').addEventListener('input', function() {
+  state.age = parseInt(this.value);
+  update(true);
+});
+
+document.getElementById('egfr-slider').addEventListener('input', function() {
+  state.egfr = parseInt(this.value);
+  update(true);
+});
+
+// ─────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────
+function formatNum(n) {
+  if (n === undefined || n === null) return '—';
+  return n.toLocaleString('en-US');
+}
+
+function formatNumShort(n) {
+  if (n === undefined || n === null) return '—';
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(0) + 'k';
+  return String(n);
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+renderCriteriaList();
+update(false);
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => update(false), 80);
+});
+</script>
+</body>
+</html>

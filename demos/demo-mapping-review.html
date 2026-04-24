@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mapping Review — Anchor-Based Hierarchy Navigation</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-panel: #1e293b;
+      --bg-card: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border: #475569;
+      --color-mapped: #f59e0b;
+      --color-candidate: #3b82f6;
+      --color-added: #22c55e;
+      --color-excluded: #ef4444;
+      --color-context: #64748b;
+      --color-discoverable: #8b5cf6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    header {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+    header a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    header a:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+    header h1 { font-size: 15px; font-weight: 600; flex: 1; }
+    header .badge {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--color-mapped);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 4px;
+    }
+
+    /* Main 3-col layout */
+    .main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Left: Criterion & Mapped */
+    .left-panel {
+      width: 300px;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .section { padding: 14px; border-bottom: 1px solid var(--border); }
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    /* Criterion text */
+    .criterion-box {
+      background: var(--bg-card);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+    .entity-tag {
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .entity-tag:hover { opacity: 0.8; }
+    .entity-tag.condition {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fcd34d;
+      border-bottom: 2px solid var(--color-mapped);
+    }
+    .entity-tag.measurement {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fcd34d;
+      border-bottom: 2px solid var(--color-mapped);
+    }
+
+    /* Mapped concepts list */
+    .mapped-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+    }
+    .mapped-item:hover { border-color: var(--color-mapped); }
+    .mapped-item.active { border-color: var(--color-mapped); box-shadow: 0 0 0 1px var(--color-mapped); }
+    .mapped-item .name { font-size: 13px; font-weight: 500; }
+    .mapped-item .id { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
+    .mapped-item .status-dot {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Center: Hierarchy Tree */
+    .center-panel {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+      background: var(--bg-main);
+    }
+    #tree-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+    #tree-svg:active { cursor: grabbing; }
+
+    /* Tree node styles */
+    .tree-node { cursor: pointer; }
+    .tree-node:hover circle, .tree-node:hover rect { filter: brightness(1.2); }
+
+    .tree-link {
+      fill: none;
+      stroke: var(--border);
+      stroke-width: 1.5;
+    }
+
+    /* Floating hint */
+    .hint-bar {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    /* Legend */
+    .legend-bar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      display: flex;
+      gap: 12px;
+      font-size: 10px;
+      color: var(--text-secondary);
+      background: rgba(15, 23, 42, 0.85);
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* Tooltip */
+    .tooltip {
+      position: absolute;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 11px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 20;
+      max-width: 220px;
+      line-height: 1.5;
+    }
+
+    /* Right: Concept Set */
+    .right-panel {
+      width: 280px;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .set-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      position: relative;
+    }
+    .set-item .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .set-item .info { flex: 1; min-width: 0; }
+    .set-item .sname {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .set-item .sid { font-size: 10px; color: var(--text-secondary); font-family: monospace; }
+    .set-item .desc-toggle {
+      font-size: 9px;
+      color: var(--color-candidate);
+      cursor: pointer;
+      margin-top: 2px;
+    }
+    .set-item .desc-toggle:hover { text-decoration: underline; }
+    .set-item .remove-btn {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .set-item .remove-btn:hover { border-color: var(--color-excluded); color: var(--color-excluded); }
+    .set-list { flex: 1; overflow-y: auto; padding: 14px; }
+    .set-summary {
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .set-summary .count { font-weight: 600; color: var(--text-primary); }
+
+    /* Action buttons in tree */
+    .node-action {
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .tree-node:hover .node-action { opacity: 1; }
+
+    /* Descendants badge */
+    .desc-badge {
+      font-size: 8px;
+      fill: var(--text-secondary);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="demo-all.html">← All Demos</a>
+  <h1>Mapping Review — Anchor-Based Hierarchy</h1>
+  <span class="badge">LEADER / NCT01179048</span>
+</header>
+
+<div class="main">
+
+  <!-- Left: Criterion + Mapped Concepts -->
+  <div class="left-panel">
+    <div class="section">
+      <div class="section-title">Criterion (Inclusion #1)</div>
+      <div class="criterion-box">
+        Adults with <span class="entity-tag condition" onclick="focusAnchor('t2dm')">type 2 diabetes mellitus</span>
+        and <span class="entity-tag measurement" onclick="focusAnchor('hba1c')">HbA1c &ge; 7.0%</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Agent2 Mapped Concepts</div>
+      <div class="mapped-item active" onclick="focusAnchor('t2dm')" id="mi-t2dm">
+        <div class="name">Type 2 diabetes mellitus</div>
+        <div class="id">201826 &middot; SNOMED &middot; Standard</div>
+        <div class="status-dot" style="background: var(--color-mapped)"></div>
+      </div>
+      <div class="mapped-item" onclick="focusAnchor('hba1c')" id="mi-hba1c">
+        <div class="name">HbA1c measurement</div>
+        <div class="id">3004410 &middot; LOINC &middot; Standard</div>
+        <div class="status-dot" style="background: var(--color-mapped)"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Agent2 Candidates (not selected)</div>
+      <div class="mapped-item" onclick="focusAnchor('t2dm_wo')" id="mi-t2dm_wo" style="border-left: 3px solid var(--color-candidate);">
+        <div class="name">T2DM without complication</div>
+        <div class="id">443238 &middot; Confidence 78.5%</div>
+      </div>
+      <div class="mapped-item" onclick="focusAnchor('e11')" id="mi-e11" style="border-left: 3px solid var(--color-candidate);">
+        <div class="name">E11 (ICD10CM)</div>
+        <div class="id">45770830 &middot; Non-standard &middot; 62.1%</div>
+      </div>
+      <div class="mapped-item" onclick="focusAnchor('glucose_disorder')" id="mi-glucose_disorder" style="border-left: 3px solid var(--color-candidate);">
+        <div class="name">Disorder of glucose metabolism</div>
+        <div class="id">4030518 &middot; Too broad &middot; 31.8%</div>
+      </div>
+    </div>
+
+    <div class="section" style="border-bottom: none;">
+      <div class="section-title">Discovery Guide</div>
+      <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.6;">
+        <div style="margin-bottom: 6px;">
+          <span style="color: var(--color-discoverable);">Purple nodes</span> = siblings of mapped concepts.
+          These are the most likely <strong>missing concepts</strong>.
+        </div>
+        <div>
+          Click <strong style="color: var(--color-added);">+</strong> on any node to add it to the concept set.
+          Click <strong style="color: var(--color-excluded);">&minus;</strong> to remove.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center: Hierarchy Tree -->
+  <div class="center-panel">
+    <svg id="tree-svg"></svg>
+
+    <div class="legend-bar">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--color-mapped)"></div> Mapped (anchor)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--color-candidate)"></div> Candidate</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--color-discoverable)"></div> Discoverable</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--color-added)"></div> Added</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--color-context)"></div> Context</div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <div class="hint-bar">
+      Click <strong>+</strong> to add &middot; Click node to focus &middot; Scroll to zoom &middot; Drag to pan
+    </div>
+  </div>
+
+  <!-- Right: Concept Set -->
+  <div class="right-panel">
+    <div class="section">
+      <div class="section-title">Final Concept Set</div>
+    </div>
+    <div class="set-list" id="set-list"></div>
+    <div class="set-summary">
+      <span>Total: <span class="count" id="set-count">2</span> concepts</span>
+      <span id="set-desc-count">+12,847 descendants</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Data ────────────────────────────────────────────────────────────────────
+const TREE_DATA = {
+  id: 'clinical_finding', name: 'Clinical Finding', conceptId: null,
+  domain: 'Condition', vocab: 'SNOMED', freq: 0, state: 'context', desc: 0,
+  children: [
+    {
+      id: 'glucose_disorder', name: 'Disorder of glucose metabolism', conceptId: 4030518,
+      domain: 'Condition', vocab: 'SNOMED', freq: 8241, state: 'candidate', desc: 45392,
+      children: [
+        {
+          id: 'diabetes', name: 'Diabetes mellitus', conceptId: 4008576,
+          domain: 'Condition', vocab: 'SNOMED', freq: 5102, state: 'context', desc: 28113,
+          children: [
+            {
+              id: 't2dm', name: 'Type 2 diabetes mellitus', conceptId: 201826,
+              domain: 'Condition', vocab: 'SNOMED', freq: 1393, state: 'mapped', desc: 12847,
+              children: [
+                { id: 't2dm_wo', name: 'T2DM without complication', conceptId: 443238,
+                  domain: 'Condition', vocab: 'SNOMED', freq: 892, state: 'candidate', desc: 0, children: [] },
+                { id: 't2dm_nephro', name: 'T2DM with nephropathy', conceptId: 443731,
+                  domain: 'Condition', vocab: 'SNOMED', freq: 214, state: 'discoverable', desc: 38, children: [] },
+                { id: 't2dm_retino', name: 'T2DM with retinopathy', conceptId: 443733,
+                  domain: 'Condition', vocab: 'SNOMED', freq: 187, state: 'discoverable', desc: 42, children: [] },
+                { id: 't2dm_neuro', name: 'T2DM with neuropathy', conceptId: 443734,
+                  domain: 'Condition', vocab: 'SNOMED', freq: 156, state: 'discoverable', desc: 21, children: [] },
+                { id: 't2dm_periph', name: 'T2DM with peripheral circulatory disorder', conceptId: 443735,
+                  domain: 'Condition', vocab: 'SNOMED', freq: 89, state: 'discoverable', desc: 12, children: [] },
+                { id: 't2dm_ketoacid', name: 'T2DM with ketoacidosis', conceptId: 443736,
+                  domain: 'Condition', vocab: 'SNOMED', freq: 34, state: 'discoverable', desc: 5, children: [] },
+              ]
+            },
+            {
+              id: 't1dm', name: 'Type 1 diabetes mellitus', conceptId: 201254,
+              domain: 'Condition', vocab: 'SNOMED', freq: 312, state: 'context', desc: 4291,
+              children: [
+                { id: 't1dm_ketoacid', name: 'T1DM with ketoacidosis', conceptId: 443237,
+                  domain: 'Condition', vocab: 'SNOMED', freq: 45, state: 'context', desc: 0, children: [] },
+              ]
+            },
+            {
+              id: 'secondary_dm', name: 'Secondary diabetes mellitus', conceptId: 195771,
+              domain: 'Condition', vocab: 'SNOMED', freq: 67, state: 'context', desc: 312,
+              children: []
+            },
+            {
+              id: 'gestational_dm', name: 'Gestational diabetes', conceptId: 4058243,
+              domain: 'Condition', vocab: 'SNOMED', freq: 198, state: 'context', desc: 89,
+              children: []
+            },
+          ]
+        },
+        {
+          id: 'hyperglycemia', name: 'Hyperglycemia', conceptId: 4214956,
+          domain: 'Condition', vocab: 'SNOMED', freq: 423, state: 'context', desc: 56,
+          children: []
+        }
+      ]
+    },
+    {
+      id: 'e11', name: 'E11 — T2DM (ICD10CM)', conceptId: 45770830,
+      domain: 'Condition', vocab: 'ICD10CM', freq: 1388, state: 'candidate', desc: 0,
+      _mapsTo: 't2dm',
+      children: []
+    },
+    {
+      id: 'hba1c', name: 'HbA1c (Glycated hemoglobin)', conceptId: 3004410,
+      domain: 'Measurement', vocab: 'LOINC', freq: 1250, state: 'mapped', desc: 3,
+      children: [
+        { id: 'hba1c_pct', name: 'HbA1c in blood (%)', conceptId: 3034639,
+          domain: 'Measurement', vocab: 'LOINC', freq: 980, state: 'discoverable', desc: 0, children: [] },
+        { id: 'hba1c_mmol', name: 'HbA1c in blood (mmol/mol)', conceptId: 40762499,
+          domain: 'Measurement', vocab: 'LOINC', freq: 720, state: 'discoverable', desc: 0, children: [] },
+      ]
+    }
+  ]
+};
+
+// ─── State ───────────────────────────────────────────────────────────────────
+const conceptSet = new Map();
+let currentFocus = 't2dm';
+
+// Pre-populate concept set with mapped concepts
+conceptSet.set('t2dm', { includeDesc: true });
+conceptSet.set('hba1c', { includeDesc: false });
+
+// ─── Colors ──────────────────────────────────────────────────────────────────
+const STATE_COLORS = {
+  mapped:       '#f59e0b',
+  candidate:    '#3b82f6',
+  discoverable: '#8b5cf6',
+  added:        '#22c55e',
+  context:      '#64748b',
+};
+
+function nodeColor(d) {
+  if (conceptSet.has(d.data.id) && d.data.state !== 'mapped') return STATE_COLORS.added;
+  return STATE_COLORS[d.data.state] || STATE_COLORS.context;
+}
+
+function nodeRadius(d) {
+  if (d.data.state === 'mapped') return 14;
+  if (d.data.state === 'candidate') return 10;
+  if (d.data.state === 'discoverable') return 9;
+  return 8;
+}
+
+// ─── D3 Setup ────────────────────────────────────────────────────────────────
+const svgEl = document.getElementById('tree-svg');
+const svg = d3.select('#tree-svg');
+let gAll, gLinks, gNodes;
+let zoomBehavior;
+
+function initSvg() {
+  const W = svgEl.clientWidth || 900;
+  const H = svgEl.clientHeight || 600;
+
+  gAll = svg.append('g');
+  gLinks = gAll.append('g');
+  gNodes = gAll.append('g');
+
+  zoomBehavior = d3.zoom()
+    .scaleExtent([0.3, 3])
+    .on('zoom', (event) => gAll.attr('transform', event.transform));
+  svg.call(zoomBehavior);
+}
+
+// ─── Flatten + find ──────────────────────────────────────────────────────────
+function findNode(root, id) {
+  if (root.id === id) return root;
+  if (root.children) {
+    for (const c of root.children) {
+      const found = findNode(c, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// ─── Render Tree ─────────────────────────────────────────────────────────────
+function render() {
+  const W = svgEl.clientWidth || 900;
+  const H = svgEl.clientHeight || 600;
+
+  const root = d3.hierarchy(TREE_DATA);
+  const treeLayout = d3.tree()
+    .nodeSize([52, 180])
+    .separation((a, b) => a.parent === b.parent ? 1 : 1.4);
+  treeLayout(root);
+
+  const duration = 400;
+
+  // Links
+  const linkData = root.links();
+  const linkSel = gLinks.selectAll('.tree-link').data(linkData, d => d.target.data.id);
+
+  linkSel.enter()
+    .append('path')
+    .attr('class', 'tree-link')
+    .attr('d', d3.linkHorizontal().x(d => d.y).y(d => d.x))
+    .attr('stroke', d => {
+      if (d.target.data._mapsTo) return '#1d4ed8';
+      return '#475569';
+    })
+    .attr('stroke-dasharray', d => d.target.data._mapsTo ? '4 3' : null)
+    .attr('stroke-opacity', 0)
+    .transition().duration(duration)
+    .attr('stroke-opacity', d => {
+      const ts = d.target.data.state;
+      if (ts === 'mapped' || ts === 'discoverable' || ts === 'candidate') return 0.7;
+      return 0.35;
+    });
+
+  linkSel.transition().duration(duration)
+    .attr('d', d3.linkHorizontal().x(d => d.y).y(d => d.x));
+
+  linkSel.exit().transition().duration(duration).attr('stroke-opacity', 0).remove();
+
+  // Nodes
+  const nodeData = root.descendants();
+  const nodeSel = gNodes.selectAll('.tree-node').data(nodeData, d => d.data.id);
+
+  const nodeEnter = nodeSel.enter()
+    .append('g')
+    .attr('class', 'tree-node')
+    .attr('transform', d => `translate(${d.y},${d.x})`)
+    .attr('opacity', 0)
+    .on('click', (event, d) => {
+      event.stopPropagation();
+      focusAnchor(d.data.id);
+    })
+    .on('mouseenter', (event, d) => showTooltip(event, d.data))
+    .on('mouseleave', hideTooltip);
+
+  // Circle
+  nodeEnter.append('circle')
+    .attr('r', d => nodeRadius(d))
+    .attr('fill', d => nodeColor(d))
+    .attr('fill-opacity', d => d.data.state === 'context' ? 0.4 : 0.85)
+    .attr('stroke', d => {
+      if (d.data.id === currentFocus) return '#fff';
+      if (d.data.state === 'mapped') return '#fbbf24';
+      return d3.color(nodeColor(d)).darker(0.5);
+    })
+    .attr('stroke-width', d => d.data.id === currentFocus ? 3 : 1.5);
+
+  // Glow for mapped
+  nodeEnter.filter(d => d.data.state === 'mapped')
+    .select('circle')
+    .style('filter', 'drop-shadow(0 0 6px rgba(245, 158, 11, 0.6))');
+
+  // Label
+  nodeEnter.append('text')
+    .attr('dy', '0.31em')
+    .attr('x', d => nodeRadius(d) + 8)
+    .attr('font-size', d => d.data.state === 'mapped' ? '12px' : d.data.state === 'context' ? '10px' : '11px')
+    .attr('font-weight', d => d.data.state === 'mapped' ? '700' : '400')
+    .attr('fill', d => d.data.state === 'context' ? '#64748b' : '#e2e8f0')
+    .text(d => {
+      const n = d.data.name;
+      return n.length > 30 ? n.slice(0, 28) + '...' : n;
+    });
+
+  // Concept ID below label
+  nodeEnter.filter(d => d.data.conceptId)
+    .append('text')
+    .attr('dy', '0.31em')
+    .attr('y', 14)
+    .attr('x', d => nodeRadius(d) + 8)
+    .attr('font-size', '9px')
+    .attr('fill', '#64748b')
+    .attr('font-family', 'monospace')
+    .text(d => d.data.conceptId);
+
+  // "+" button for non-mapped, non-added
+  nodeEnter.filter(d => d.data.state !== 'mapped' && d.data.state !== 'context')
+    .append('g')
+    .attr('class', 'node-action')
+    .attr('transform', d => `translate(${-nodeRadius(d) - 16}, 0)`)
+    .call(g => {
+      g.append('circle')
+        .attr('r', 9)
+        .attr('fill', '#1e293b')
+        .attr('stroke', '#4ade80')
+        .attr('stroke-width', 1.5);
+      g.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', '0.35em')
+        .attr('font-size', '12px')
+        .attr('font-weight', '700')
+        .attr('fill', '#4ade80')
+        .text('+');
+    })
+    .on('click', (event, d) => {
+      event.stopPropagation();
+      toggleConceptInSet(d.data.id);
+    });
+
+  // Descendants count badge
+  nodeEnter.filter(d => d.data.desc > 0)
+    .append('text')
+    .attr('class', 'desc-badge')
+    .attr('x', d => nodeRadius(d) + 8)
+    .attr('y', d => d.data.conceptId ? 26 : 14)
+    .attr('font-size', '8px')
+    .attr('fill', '#64748b')
+    .text(d => `${d.data.desc.toLocaleString()} desc.`);
+
+  // Star for mapped
+  nodeEnter.filter(d => d.data.state === 'mapped')
+    .append('text')
+    .attr('x', d => -nodeRadius(d) - 14)
+    .attr('dy', '0.35em')
+    .attr('font-size', '11px')
+    .attr('fill', '#f59e0b')
+    .text('\u2605');
+
+  // In-set checkmark
+  nodeEnter.filter(d => conceptSet.has(d.data.id))
+    .append('text')
+    .attr('class', 'in-set-check')
+    .attr('text-anchor', 'middle')
+    .attr('dy', '0.35em')
+    .attr('font-size', d => d.data.state === 'mapped' ? '10px' : '8px')
+    .attr('fill', '#fff')
+    .attr('font-weight', '700')
+    .text('\u2713');
+
+  // Enter + transition
+  nodeEnter.transition().duration(duration)
+    .attr('opacity', d => d.data.state === 'context' ? 0.5 : 1);
+
+  // Update
+  nodeSel.transition().duration(duration)
+    .attr('transform', d => `translate(${d.y},${d.x})`);
+
+  nodeSel.select('circle')
+    .attr('r', d => nodeRadius(d))
+    .attr('fill', d => nodeColor(d))
+    .attr('fill-opacity', d => d.data.state === 'context' ? 0.4 : 0.85)
+    .attr('stroke', d => {
+      if (d.data.id === currentFocus) return '#fff';
+      if (d.data.state === 'mapped') return '#fbbf24';
+      return d3.color(nodeColor(d)).darker(0.5);
+    })
+    .attr('stroke-width', d => d.data.id === currentFocus ? 3 : 1.5);
+
+  nodeSel.exit().transition().duration(duration).attr('opacity', 0).remove();
+
+  // Center on focus node
+  const focusD3 = nodeData.find(n => n.data.id === currentFocus);
+  if (focusD3) {
+    const tx = W / 2 - focusD3.y;
+    const ty = H / 2 - focusD3.x;
+    svg.transition().duration(600).call(
+      zoomBehavior.transform,
+      d3.zoomIdentity.translate(tx, ty).scale(1)
+    );
+  }
+
+  renderConceptSet();
+}
+
+// ─── Concept Set ─────────────────────────────────────────────────────────────
+function toggleConceptInSet(id) {
+  if (conceptSet.has(id)) {
+    conceptSet.delete(id);
+  } else {
+    conceptSet.set(id, { includeDesc: false });
+  }
+  // Full re-render to update styles
+  gLinks.selectAll('*').remove();
+  gNodes.selectAll('*').remove();
+  render();
+}
+
+function toggleDescendants(id) {
+  const entry = conceptSet.get(id);
+  if (entry) {
+    entry.includeDesc = !entry.includeDesc;
+    renderConceptSet();
+  }
+}
+
+function removeFromSet(id) {
+  conceptSet.delete(id);
+  gLinks.selectAll('*').remove();
+  gNodes.selectAll('*').remove();
+  render();
+}
+
+function renderConceptSet() {
+  const list = document.getElementById('set-list');
+  let totalDesc = 0;
+
+  if (conceptSet.size === 0) {
+    list.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;padding:20px;text-align:center">No concepts in set</div>';
+    document.getElementById('set-count').textContent = '0';
+    document.getElementById('set-desc-count').textContent = '';
+    return;
+  }
+
+  let html = '';
+  conceptSet.forEach((entry, id) => {
+    const node = findNode(TREE_DATA, id);
+    if (!node) return;
+    const color = node.state === 'mapped' ? STATE_COLORS.mapped : STATE_COLORS.added;
+    const descCount = node.desc || 0;
+    if (entry.includeDesc) totalDesc += descCount;
+
+    html += `
+      <div class="set-item">
+        <div class="dot" style="background:${color}"></div>
+        <div class="info">
+          <div class="sname" title="${node.name}">${node.name}</div>
+          <div class="sid">${node.conceptId || ''} &middot; ${node.vocab}</div>
+          ${descCount > 0 ? `<div class="desc-toggle" onclick="toggleDescendants('${id}')">
+            ${entry.includeDesc ? '\u2611' : '\u2610'} Include ${descCount.toLocaleString()} descendants
+          </div>` : ''}
+        </div>
+        ${node.state !== 'mapped' ? `<button class="remove-btn" onclick="removeFromSet('${id}')" title="Remove">&times;</button>` : ''}
+      </div>
+    `;
+  });
+
+  list.innerHTML = html;
+  document.getElementById('set-count').textContent = conceptSet.size;
+  document.getElementById('set-desc-count').textContent = totalDesc > 0 ? `+${totalDesc.toLocaleString()} descendants` : '';
+}
+
+// ─── Focus ───────────────────────────────────────────────────────────────────
+function focusAnchor(id) {
+  currentFocus = id;
+
+  // Update left panel active state
+  document.querySelectorAll('.mapped-item').forEach(el => el.classList.remove('active'));
+  const mi = document.getElementById(`mi-${id}`);
+  if (mi) mi.classList.add('active');
+
+  // Re-render (re-centers on focus)
+  gLinks.selectAll('*').remove();
+  gNodes.selectAll('*').remove();
+  render();
+}
+
+// ─── Tooltip ─────────────────────────────────────────────────────────────────
+const tooltipEl = document.getElementById('tooltip');
+
+function showTooltip(event, node) {
+  const stateLabels = {
+    mapped: 'Mapped (anchor)',
+    candidate: 'Candidate',
+    discoverable: 'Discoverable sibling',
+    added: 'Added to set',
+    context: 'Context',
+  };
+  const state = conceptSet.has(node.id) && node.state !== 'mapped' ? 'added' : node.state;
+  tooltipEl.innerHTML = `
+    <div style="font-weight:600;color:${STATE_COLORS[state]};margin-bottom:3px;">${node.name}</div>
+    ${node.conceptId ? `<div style="font-family:monospace;font-size:10px;color:#94a3b8;">ID: ${node.conceptId}</div>` : ''}
+    <div style="color:#94a3b8;margin-top:3px;">${node.domain} &middot; ${node.vocab} &middot; ${node.freq.toLocaleString()} persons</div>
+    <div style="margin-top:4px;color:${STATE_COLORS[state]};">${stateLabels[state] || state}</div>
+    ${node.desc > 0 ? `<div style="color:#64748b;margin-top:2px;">${node.desc.toLocaleString()} descendants</div>` : ''}
+    ${node.state === 'discoverable' ? '<div style="color:#a78bfa;margin-top:4px;font-weight:500;">Click + to add to concept set</div>' : ''}
+  `;
+  tooltipEl.style.opacity = '1';
+
+  const rect = svgEl.getBoundingClientRect();
+  let x = event.clientX - rect.left + 15;
+  let y = event.clientY - rect.top - 10;
+  if (x + 230 > rect.width) x -= 250;
+  tooltipEl.style.left = x + 'px';
+  tooltipEl.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  tooltipEl.style.opacity = '0';
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+function boot() {
+  initSvg();
+  render();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  requestAnimationFrame(boot);
+}
+</script>
+</body>
+</html>

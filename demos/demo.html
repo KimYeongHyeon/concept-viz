@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinician-in-the-Loop OMOP Criteria Mapper</title>
+  <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+  <style>
+    :root {
+      --color-condition: #3b82f6;
+      --color-drug: #22c55e;
+      --color-measurement: #f59e0b;
+      --color-procedure: #a855f7;
+      --color-approved: #16a34a;
+      --color-pending: #eab308;
+      --color-rejected: #dc2626;
+      --color-unreviewed: #94a3b8;
+      --bg-main: #0f172a;
+      --bg-panel: #1e293b;
+      --bg-card: #334155;
+      --bg-card-hover: #3b4d66;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border: #475569;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .header h1 .logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--color-condition), var(--color-drug));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .header-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .header-meta span { display: flex; align-items: center; gap: 4px; }
+
+    /* Study Selector Bar */
+    .study-bar {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 16px;
+      font-size: 13px;
+    }
+    .study-bar label { color: var(--text-secondary); font-weight: 500; }
+    .study-bar select {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      flex: 1 1 320px;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .study-bar .study-tag {
+      background: var(--color-condition);
+      color: white;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .study-bar .study-stats {
+      color: var(--text-secondary);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    /* Main 3-Panel Layout */
+    .main-panels {
+      display: grid;
+      grid-template-columns: 320px 1fr 340px;
+      gap: 1px;
+      background: var(--border);
+      height: calc(100vh - 160px - 56px);
+      min-height: 500px;
+    }
+
+    .panel {
+      background: var(--bg-main);
+      overflow-y: auto;
+      padding: 16px;
+      min-width: 0;
+    }
+    .panel-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .panel-title .icon { font-size: 14px; }
+
+    /* Panel A: Criteria Span Highlight */
+    .criteria-group {
+      margin-bottom: 16px;
+    }
+    .criteria-group-header {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    .criteria-group-header.inclusion {
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+    }
+    .criteria-group-header.exclusion {
+      background: rgba(220, 38, 38, 0.15);
+      color: #f87171;
+    }
+
+    .criterion-item {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+    }
+    .criterion-item:hover { background: var(--bg-card); border-color: var(--color-condition); }
+    .criterion-item:focus-visible,
+    .reasoning-toggle:focus-visible,
+    .graph-tab:focus-visible,
+    .btn:focus-visible {
+      outline: 2px solid var(--color-condition);
+      outline-offset: 2px;
+    }
+    .criterion-item.active { border-color: var(--color-condition); box-shadow: 0 0 0 1px var(--color-condition); }
+
+    .criterion-text {
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .entity-highlight {
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .entity-highlight:hover { opacity: 0.8; }
+    .entity-highlight.condition { background: rgba(59, 130, 246, 0.25); color: #93c5fd; border-bottom: 2px solid var(--color-condition); }
+    .entity-highlight.drug { background: rgba(34, 197, 94, 0.2); color: #86efac; border-bottom: 2px solid var(--color-drug); }
+    .entity-highlight.measurement { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border-bottom: 2px solid var(--color-measurement); }
+    .entity-highlight.procedure { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border-bottom: 2px solid var(--color-procedure); }
+
+    .criterion-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .badge.domain-condition { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .badge.domain-drug { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+    .badge.domain-measurement { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .badge.domain-procedure { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
+    .badge.status-approved { background: rgba(22, 163, 74, 0.2); color: #4ade80; }
+    .badge.status-pending { background: rgba(234, 179, 8, 0.2); color: #facc15; }
+    .badge.status-unreviewed { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+
+    /* Panel B: Candidate Comparison Cards */
+    .candidate-header {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .candidate-header .selected-criterion {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .candidate-header .selected-entity {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .candidate-note {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      border-top: 1px solid rgba(71, 85, 105, 0.45);
+      padding-top: 8px;
+    }
+
+    .candidates-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+      gap: 12px;
+    }
+
+    .candidate-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .candidate-card:hover { border-color: var(--color-condition); transform: translateY(-1px); }
+    .candidate-card.recommended { border-color: var(--color-approved); }
+    .candidate-card.recommended::before {
+      content: 'AI Recommended';
+      position: absolute;
+      top: -8px;
+      right: 12px;
+      background: var(--color-approved);
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .concept-name { font-size: 14px; font-weight: 600; flex: 1; }
+    .concept-id { font-size: 11px; color: var(--text-secondary); font-family: 'SF Mono', monospace; }
+
+    .card-vocab {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .vocab-tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+    }
+    .vocab-tag.standard { background: rgba(22, 163, 74, 0.2); color: #4ade80; }
+
+    .confidence-row {
+      margin-bottom: 10px;
+    }
+    .confidence-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+    .confidence-bar-bg {
+      height: 6px;
+      background: var(--bg-card);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .confidence-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+    .confidence-high { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .confidence-mid { background: linear-gradient(90deg, #eab308, #facc15); }
+    .confidence-low { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+    .reasoning-toggle {
+      display: inline-flex;
+      align-items: center;
+      font-size: 11px;
+      color: var(--color-condition);
+      cursor: pointer;
+      margin-bottom: 8px;
+      user-select: none;
+      appearance: none;
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+      font-family: inherit;
+      padding: 2px 0;
+    }
+    .reasoning-toggle:hover { text-decoration: underline; }
+    .reasoning-content {
+      display: none;
+      font-size: 12px;
+      color: var(--text-secondary);
+      background: var(--bg-card);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+    .reasoning-content.open { display: block; }
+
+    .card-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .btn {
+      flex: 1;
+      padding: 6px 0;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+      background: transparent;
+      color: var(--text-primary);
+    }
+    .btn:hover { transform: scale(1.02); }
+    .btn.approve { border-color: var(--color-approved); color: #4ade80; }
+    .btn.approve:hover { background: rgba(22, 163, 74, 0.15); }
+    .btn.approve.active { background: var(--color-approved); color: white; }
+    .btn.replace { border-color: var(--color-pending); color: #facc15; }
+    .btn.replace:hover { background: rgba(234, 179, 8, 0.15); }
+    .btn.reject { border-color: var(--color-rejected); color: #f87171; }
+    .btn.reject:hover { background: rgba(220, 38, 38, 0.15); }
+
+    /* Panel C: Concept Hierarchy Graph */
+    .graph-controls {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .graph-tab {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .graph-tab.active { background: var(--color-condition); color: white; border-color: var(--color-condition); }
+    .graph-tab:hover:not(.active) { border-color: var(--color-condition); }
+
+    #cy-container {
+      width: 100%;
+      height: 340px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .graph-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .concept-detail-box {
+      margin-top: 12px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { color: var(--text-secondary); }
+    .detail-value { font-weight: 500; text-align: right; }
+
+    /* Dashboard */
+    .dashboard {
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+      padding: 16px 24px;
+      display: grid;
+      grid-template-columns: 1fr 1.5fr 1fr;
+      gap: 20px;
+    }
+    .dash-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+
+    /* Progress Bar */
+    .progress-stats {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .progress-stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+    }
+    .progress-stat .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+    }
+    .stacked-bar {
+      height: 20px;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      background: var(--bg-card);
+    }
+    .stacked-segment {
+      height: 100%;
+      transition: width 0.5s ease;
+      position: relative;
+    }
+    .stacked-segment:hover { opacity: 0.85; }
+
+    /* Heatmap */
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: 100px repeat(5, 1fr);
+      gap: 3px;
+      font-size: 10px;
+    }
+    .heatmap-label {
+      display: flex;
+      align-items: center;
+      font-size: 10px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .heatmap-cell {
+      height: 24px;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: 600;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .heatmap-cell:hover { transform: scale(1.1); z-index: 1; }
+    .heatmap-header {
+      font-size: 9px;
+      color: var(--text-secondary);
+      text-align: center;
+      font-weight: 600;
+    }
+
+    /* Timeline */
+    .timeline {
+      position: relative;
+      padding-left: 16px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .timeline-item {
+      position: relative;
+      margin-bottom: 10px;
+      padding-left: 12px;
+    }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -12px;
+      top: 5px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .timeline-item.approved::before { background: var(--color-approved); }
+    .timeline-item.replaced::before { background: var(--color-pending); }
+    .timeline-item.rejected::before { background: var(--color-rejected); }
+    .timeline-text { font-size: 11px; }
+    .timeline-time { font-size: 10px; color: var(--text-secondary); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .main-panels {
+        grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.15fr);
+        height: auto;
+        min-height: 0;
+      }
+      .panel:nth-child(3) {
+        display: block;
+        grid-column: 1 / -1;
+      }
+    }
+    @media (max-width: 800px) {
+      .header {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 14px 16px;
+      }
+      .header h1 { font-size: 16px; }
+      .header-meta {
+        flex-wrap: wrap;
+        gap: 6px 10px;
+      }
+      .study-bar { padding: 10px 16px; }
+      .study-bar label,
+      .study-bar select,
+      .study-bar .study-stats {
+        flex-basis: 100%;
+      }
+      .main-panels { grid-template-columns: minmax(0, 1fr); }
+      .panel:nth-child(3) { grid-column: auto; }
+      .dashboard { grid-template-columns: 1fr; }
+      #cy-container { height: 300px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <h1>
+      <span class="logo">A</span>
+      Clinician-in-the-Loop OMOP Criteria Mapper
+    </h1>
+    <div class="header-meta">
+      <span>ARTEMIS v3.1</span>
+      <span>|</span>
+      <span>OMOP CDM v5.4</span>
+      <span>|</span>
+      <span>440,790 Concepts</span>
+    </div>
+  </header>
+
+  <!-- Study Selector -->
+  <div class="study-bar">
+    <label>Study:</label>
+    <select id="study-select">
+      <option>LEADER (NCT01179048) — Liraglutide CV Outcomes</option>
+      <option>PLATO (NCT00391872) — Ticagrelor vs Clopidogrel</option>
+      <option>ARISTOTLE (NCT00412984) — Apixaban vs Warfarin</option>
+    </select>
+    <span class="study-tag">Phase III</span>
+    <span class="study-stats">12 criteria | 38 entities | 6 approved</span>
+  </div>
+
+  <!-- Main 3-Panel Layout -->
+  <div class="main-panels">
+
+    <!-- Panel A: Criteria Span Highlight -->
+    <div class="panel" id="panel-criteria">
+      <div class="panel-title"><span class="icon">A</span> Criteria Span Highlight</div>
+
+      <div class="criteria-group">
+        <div class="criteria-group-header inclusion">Inclusion Criteria</div>
+
+        <div class="criterion-item active" data-id="inc-1" onclick="selectCriterion(this, 'inc-1')">
+          <div class="criterion-text">
+            Adults with <span class="entity-highlight condition" data-entity="t2dm">type 2 diabetes mellitus</span>
+            and <span class="entity-highlight measurement" data-entity="hba1c">HbA1c &ge; 7.0%</span>
+          </div>
+          <div class="criterion-meta">
+            <span class="badge domain-condition">Condition</span>
+            <span class="badge domain-measurement">Measurement</span>
+            <span class="badge status-approved">Approved</span>
+          </div>
+        </div>
+
+        <div class="criterion-item" data-id="inc-2" onclick="selectCriterion(this, 'inc-2')">
+          <div class="criterion-text">
+            Currently treated with <span class="entity-highlight drug" data-entity="liraglutide">liraglutide</span>
+            or other <span class="entity-highlight drug" data-entity="glp1">GLP-1 receptor agonist</span>
+          </div>
+          <div class="criterion-meta">
+            <span class="badge domain-drug">Drug</span>
+            <span class="badge status-pending">Pending</span>
+          </div>
+        </div>
+
+        <div class="criterion-item" data-id="inc-3" onclick="selectCriterion(this, 'inc-3')">
+          <div class="criterion-text">
+            Established <span class="entity-highlight condition" data-entity="cvd">cardiovascular disease</span>
+            or high <span class="entity-highlight condition" data-entity="cv-risk">cardiovascular risk</span>
+          </div>
+          <div class="criterion-meta">
+            <span class="badge domain-condition">Condition</span>
+            <span class="badge status-unreviewed">Unreviewed</span>
+          </div>
+        </div>
+
+        <div class="criterion-item" data-id="inc-4" onclick="selectCriterion(this, 'inc-4')">
+          <div class="criterion-text">
+            <span class="entity-highlight measurement" data-entity="egfr">eGFR &ge; 30 mL/min/1.73m&sup2;</span>
+          </div>
+          <div class="criterion-meta">
+            <span class="badge domain-measurement">Measurement</span>
+            <span class="badge status-approved">Approved</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="criteria-group">
+        <div class="criteria-group-header exclusion">Exclusion Criteria</div>
+
+        <div class="criterion-item" data-id="exc-1" onclick="selectCriterion(this, 'exc-1')">
+          <div class="criterion-text">
+            <span class="entity-highlight condition" data-entity="t1dm">Type 1 diabetes</span> or
+            <span class="entity-highlight condition" data-entity="dka">diabetic ketoacidosis</span>
+          </div>
+          <div class="criterion-meta">
+            <span class="badge domain-condition">Condition</span>
+            <span class="badge status-approved">Approved</span>
+          </div>
+        </div>
+
+        <div class="criterion-item" data-id="exc-2" onclick="selectCriterion(this, 'exc-2')">
+          <div class="criterion-text">
+            Use of <span class="entity-highlight drug" data-entity="insulin">rapid-acting insulin</span>
+            within <span class="entity-highlight measurement" data-entity="timeframe">90 days</span>
+          </div>
+          <div class="criterion-meta">
+            <span class="badge domain-drug">Drug</span>
+            <span class="badge status-pending">Pending</span>
+          </div>
+        </div>
+
+        <div class="criterion-item" data-id="exc-3" onclick="selectCriterion(this, 'exc-3')">
+          <div class="criterion-text">
+            History of <span class="entity-highlight procedure" data-entity="pancreatectomy">pancreatectomy</span>
+            or <span class="entity-highlight condition" data-entity="pancreatitis">chronic pancreatitis</span>
+          </div>
+          <div class="criterion-meta">
+            <span class="badge domain-procedure">Procedure</span>
+            <span class="badge domain-condition">Condition</span>
+            <span class="badge status-unreviewed">Unreviewed</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel B: Candidate Comparison Cards -->
+    <div class="panel" id="panel-candidates">
+      <div class="panel-title"><span class="icon">B</span> Candidate Comparison</div>
+
+      <div class="candidate-header" aria-live="polite">
+        <div class="selected-criterion">Inc-1: Adults with type 2 diabetes mellitus and HbA1c &ge; 7.0%</div>
+        <div class="selected-entity">Selected entity: <strong style="color: #93c5fd;">type 2 diabetes mellitus</strong> (Condition domain)</div>
+        <div class="candidate-note">Static demo candidate examples are shown below for the T2DM mapping case.</div>
+      </div>
+
+      <div class="candidates-grid" id="candidates-grid">
+        <!-- Card 1 -->
+        <div class="candidate-card recommended">
+          <div class="card-top">
+            <div class="concept-name">Type 2 diabetes mellitus</div>
+            <div class="concept-id">201826</div>
+          </div>
+          <div class="card-vocab">
+            <span class="vocab-tag standard">Standard</span>
+            <span class="vocab-tag">SNOMED CT</span>
+            <span class="vocab-tag">Condition</span>
+          </div>
+          <div class="confidence-row">
+            <div class="confidence-label"><span>Confidence</span><span>94.2%</span></div>
+            <div class="confidence-bar-bg"><div class="confidence-bar-fill confidence-high" style="width: 94.2%"></div></div>
+          </div>
+          <button type="button" class="reasoning-toggle" aria-expanded="false" onclick="toggleReasoning(this)">Show reasoning</button>
+          <div class="reasoning-content">
+            <strong>Semantic:</strong> Exact match with criterion text (cosine 0.97).<br>
+            <strong>KG:</strong> Standard SNOMED concept, 12,847 descendants. Preferred over ICD10CM E11 due to OMOP standard status.<br>
+            <strong>Critic:</strong> High confidence. Directly maps to the clinical intent without overspecification.
+          </div>
+          <div class="card-actions">
+            <button class="btn approve active" onclick="setAction(this, 'approve')">Approve</button>
+            <button class="btn replace" onclick="setAction(this, 'replace')">Replace</button>
+            <button class="btn reject" onclick="setAction(this, 'reject')">Reject</button>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="candidate-card">
+          <div class="card-top">
+            <div class="concept-name">Diabetes mellitus type 2 without complication</div>
+            <div class="concept-id">443238</div>
+          </div>
+          <div class="card-vocab">
+            <span class="vocab-tag standard">Standard</span>
+            <span class="vocab-tag">SNOMED CT</span>
+            <span class="vocab-tag">Condition</span>
+          </div>
+          <div class="confidence-row">
+            <div class="confidence-label"><span>Confidence</span><span>78.5%</span></div>
+            <div class="confidence-bar-bg"><div class="confidence-bar-fill confidence-mid" style="width: 78.5%"></div></div>
+          </div>
+          <button type="button" class="reasoning-toggle" aria-expanded="false" onclick="toggleReasoning(this)">Show reasoning</button>
+          <div class="reasoning-content">
+            <strong>Semantic:</strong> High similarity (cosine 0.91) but adds "without complication" constraint.<br>
+            <strong>KG:</strong> Child of concept 201826. Overly specific for LEADER population which includes patients with CV complications.<br>
+            <strong>Critic:</strong> Narrower scope may exclude relevant patients. Recommend parent concept instead.
+          </div>
+          <div class="card-actions">
+            <button class="btn approve" onclick="setAction(this, 'approve')">Approve</button>
+            <button class="btn replace" onclick="setAction(this, 'replace')">Replace</button>
+            <button class="btn reject" onclick="setAction(this, 'reject')">Reject</button>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="candidate-card">
+          <div class="card-top">
+            <div class="concept-name">Type 2 diabetes mellitus (E11)</div>
+            <div class="concept-id">45770830</div>
+          </div>
+          <div class="card-vocab">
+            <span class="vocab-tag">Non-standard</span>
+            <span class="vocab-tag">ICD10CM</span>
+            <span class="vocab-tag">Condition</span>
+          </div>
+          <div class="confidence-row">
+            <div class="confidence-label"><span>Confidence</span><span>62.1%</span></div>
+            <div class="confidence-bar-bg"><div class="confidence-bar-fill confidence-mid" style="width: 62.1%"></div></div>
+          </div>
+          <button type="button" class="reasoning-toggle" aria-expanded="false" onclick="toggleReasoning(this)">Show reasoning</button>
+          <div class="reasoning-content">
+            <strong>Semantic:</strong> Exact term match (cosine 0.95) but ICD10CM source.<br>
+            <strong>KG:</strong> Non-standard concept. Maps to 201826 via "Maps to" relationship. Using source concept directly would miss standardized descendants.<br>
+            <strong>Critic:</strong> Not recommended. Use the standard SNOMED target instead for broader CDM coverage.
+          </div>
+          <div class="card-actions">
+            <button class="btn approve" onclick="setAction(this, 'approve')">Approve</button>
+            <button class="btn replace" onclick="setAction(this, 'replace')">Replace</button>
+            <button class="btn reject" onclick="setAction(this, 'reject')">Reject</button>
+          </div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="candidate-card">
+          <div class="card-top">
+            <div class="concept-name">Disorder of glucose metabolism</div>
+            <div class="concept-id">4030518</div>
+          </div>
+          <div class="card-vocab">
+            <span class="vocab-tag standard">Standard</span>
+            <span class="vocab-tag">SNOMED CT</span>
+            <span class="vocab-tag">Condition</span>
+          </div>
+          <div class="confidence-row">
+            <div class="confidence-label"><span>Confidence</span><span>31.8%</span></div>
+            <div class="confidence-bar-bg"><div class="confidence-bar-fill confidence-low" style="width: 31.8%"></div></div>
+          </div>
+          <button type="button" class="reasoning-toggle" aria-expanded="false" onclick="toggleReasoning(this)">Show reasoning</button>
+          <div class="reasoning-content">
+            <strong>Semantic:</strong> Broad parent concept (cosine 0.62).<br>
+            <strong>KG:</strong> Ancestor of T2DM. Includes T1DM, prediabetes, and other glucose disorders. Far too broad for study intent.<br>
+            <strong>Critic:</strong> Rejected. Would capture non-target population.
+          </div>
+          <div class="card-actions">
+            <button class="btn approve" onclick="setAction(this, 'approve')">Approve</button>
+            <button class="btn replace" onclick="setAction(this, 'replace')">Replace</button>
+            <button class="btn reject" onclick="setAction(this, 'reject')">Reject</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel C: Concept Hierarchy Graph -->
+    <div class="panel" id="panel-graph">
+      <div class="panel-title"><span class="icon">C</span> Concept Hierarchy</div>
+
+      <div class="graph-controls" role="tablist" aria-label="Concept hierarchy view">
+        <button type="button" class="graph-tab active" role="tab" aria-selected="true" onclick="switchView(this, 'graph')">Graph</button>
+        <button type="button" class="graph-tab" role="tab" aria-selected="false" onclick="switchView(this, 'tree')">Tree</button>
+      </div>
+
+      <div id="cy-container"></div>
+
+      <div class="graph-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Selected</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Approved</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Candidate</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#64748b"></div> Related</div>
+      </div>
+
+      <div class="concept-detail-box" id="concept-detail">
+        <div style="font-weight: 600; margin-bottom: 6px;">Type 2 diabetes mellitus</div>
+        <div class="detail-row"><span class="detail-label">Concept ID</span><span class="detail-value">201826</span></div>
+        <div class="detail-row"><span class="detail-label">Vocabulary</span><span class="detail-value">SNOMED CT</span></div>
+        <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">Condition</span></div>
+        <div class="detail-row"><span class="detail-label">Concept Class</span><span class="detail-value">Clinical Finding</span></div>
+        <div class="detail-row"><span class="detail-label">CDM Frequency</span><span class="detail-value">1,393 persons</span></div>
+        <div class="detail-row"><span class="detail-label">Descendants</span><span class="detail-value">12,847</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="dashboard">
+    <!-- Progress -->
+    <div>
+      <div class="dash-section-title">D-1. Mapping Progress</div>
+      <div class="progress-stats">
+        <div class="progress-stat"><div class="dot" style="background:var(--color-approved)"></div> Approved 6</div>
+        <div class="progress-stat"><div class="dot" style="background:var(--color-pending)"></div> Pending 3</div>
+        <div class="progress-stat"><div class="dot" style="background:var(--color-rejected)"></div> Rejected 1</div>
+        <div class="progress-stat"><div class="dot" style="background:var(--color-unreviewed)"></div> Unreviewed 2</div>
+      </div>
+      <div class="stacked-bar">
+        <div class="stacked-segment" style="width:50%; background:var(--color-approved)" title="Approved: 6"></div>
+        <div class="stacked-segment" style="width:25%; background:var(--color-pending)" title="Pending: 3"></div>
+        <div class="stacked-segment" style="width:8.3%; background:var(--color-rejected)" title="Rejected: 1"></div>
+        <div class="stacked-segment" style="width:16.7%; background:var(--color-unreviewed)" title="Unreviewed: 2"></div>
+      </div>
+      <div style="font-size:11px; color:var(--text-secondary); margin-top:8px;">50% complete (6/12 criteria)</div>
+    </div>
+
+    <!-- Heatmap -->
+    <div>
+      <div class="dash-section-title">D-2. Confidence Heatmap</div>
+      <div class="heatmap-grid">
+        <div class="heatmap-header"></div>
+        <div class="heatmap-header">Cand.1</div>
+        <div class="heatmap-header">Cand.2</div>
+        <div class="heatmap-header">Cand.3</div>
+        <div class="heatmap-header">Cand.4</div>
+        <div class="heatmap-header">Cand.5</div>
+
+        <div class="heatmap-label">T2DM</div>
+        <div class="heatmap-cell" style="background:rgba(22,163,74,0.85)">94</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.7)">79</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.5)">62</div>
+        <div class="heatmap-cell" style="background:rgba(220,38,38,0.6)">32</div>
+        <div class="heatmap-cell" style="background:rgba(220,38,38,0.4)">18</div>
+
+        <div class="heatmap-label">HbA1c &ge;7%</div>
+        <div class="heatmap-cell" style="background:rgba(22,163,74,0.9)">97</div>
+        <div class="heatmap-cell" style="background:rgba(22,163,74,0.7)">85</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.5)">58</div>
+        <div class="heatmap-cell" style="background:rgba(220,38,38,0.5)">25</div>
+        <div class="heatmap-cell" style="background:rgba(71,85,105,0.5)">-</div>
+
+        <div class="heatmap-label">Liraglutide</div>
+        <div class="heatmap-cell" style="background:rgba(22,163,74,0.85)">91</div>
+        <div class="heatmap-cell" style="background:rgba(22,163,74,0.7)">88</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.6)">71</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.5)">55</div>
+        <div class="heatmap-cell" style="background:rgba(220,38,38,0.5)">29</div>
+
+        <div class="heatmap-label">CV Disease</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.7)">76</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.6)">72</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.5)">68</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.4)">51</div>
+        <div class="heatmap-cell" style="background:rgba(220,38,38,0.5)">33</div>
+
+        <div class="heatmap-label">eGFR &ge;30</div>
+        <div class="heatmap-cell" style="background:rgba(22,163,74,0.9)">96</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.6)">67</div>
+        <div class="heatmap-cell" style="background:rgba(220,38,38,0.5)">28</div>
+        <div class="heatmap-cell" style="background:rgba(71,85,105,0.5)">-</div>
+        <div class="heatmap-cell" style="background:rgba(71,85,105,0.5)">-</div>
+
+        <div class="heatmap-label">T1DM (excl.)</div>
+        <div class="heatmap-cell" style="background:rgba(22,163,74,0.9)">98</div>
+        <div class="heatmap-cell" style="background:rgba(22,163,74,0.7)">82</div>
+        <div class="heatmap-cell" style="background:rgba(234,179,8,0.5)">55</div>
+        <div class="heatmap-cell" style="background:rgba(71,85,105,0.5)">-</div>
+        <div class="heatmap-cell" style="background:rgba(71,85,105,0.5)">-</div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div>
+      <div class="dash-section-title">D-3. Mapping History</div>
+      <div class="timeline">
+        <div class="timeline-item approved">
+          <div class="timeline-text"><strong>T2DM</strong> &rarr; 201826 approved</div>
+          <div class="timeline-time">2 min ago &mdash; Dr. Kim</div>
+        </div>
+        <div class="timeline-item approved">
+          <div class="timeline-text"><strong>HbA1c</strong> &rarr; 3004410 approved</div>
+          <div class="timeline-time">5 min ago &mdash; Dr. Kim</div>
+        </div>
+        <div class="timeline-item replaced">
+          <div class="timeline-text"><strong>eGFR</strong> &rarr; 46236952 replaced 3049187</div>
+          <div class="timeline-time">8 min ago &mdash; Dr. Kim</div>
+        </div>
+        <div class="timeline-item approved">
+          <div class="timeline-text"><strong>T1DM</strong> &rarr; 201254 approved</div>
+          <div class="timeline-time">12 min ago &mdash; Dr. Kim</div>
+        </div>
+        <div class="timeline-item rejected">
+          <div class="timeline-text"><strong>DKA</strong> &rarr; 4009303 rejected (too broad)</div>
+          <div class="timeline-time">15 min ago &mdash; Dr. Kim</div>
+        </div>
+        <div class="timeline-item approved">
+          <div class="timeline-text"><strong>DKA</strong> &rarr; 443727 approved (replacement)</div>
+          <div class="timeline-time">14 min ago &mdash; Dr. Kim</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Criteria selection ──
+    function getEntityDomain(entity) {
+      if (!entity) return { label: 'Unknown', color: '#cbd5e1' };
+      if (entity.classList.contains('drug')) return { label: 'Drug', color: '#86efac' };
+      if (entity.classList.contains('measurement')) return { label: 'Measurement', color: '#fcd34d' };
+      if (entity.classList.contains('procedure')) return { label: 'Procedure', color: '#d8b4fe' };
+      return { label: 'Condition', color: '#93c5fd' };
+    }
+
+    function escapeHTML(value) {
+      return value.replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[char]);
+    }
+
+    function selectCriterion(el, id = el.dataset.id) {
+      document.querySelectorAll('.criterion-item').forEach(item => {
+        item.classList.remove('active');
+        item.setAttribute('aria-pressed', 'false');
+      });
+      el.classList.add('active');
+      el.setAttribute('aria-pressed', 'true');
+
+      const criterionText = el.querySelector('.criterion-text').textContent.replace(/\s+/g, ' ').trim();
+      const selectedEntity = el.querySelector('.entity-highlight');
+      const domain = getEntityDomain(selectedEntity);
+      const entityText = selectedEntity ? selectedEntity.textContent.replace(/\s+/g, ' ').trim() : 'No entity selected';
+
+      const criterionLabel = id ? id.charAt(0).toUpperCase() + id.slice(1) : 'Criterion';
+      document.querySelector('.selected-criterion').textContent = `${criterionLabel}: ${criterionText}`;
+      document.querySelector('.selected-entity').innerHTML = `Selected entity: <strong style="color: ${domain.color};">${escapeHTML(entityText)}</strong> (${domain.label} domain)`;
+    }
+
+    // ── Reasoning toggle ──
+    function toggleReasoning(el) {
+      const content = el.nextElementSibling;
+      const isOpen = content.classList.toggle('open');
+      el.textContent = isOpen ? 'Hide reasoning' : 'Show reasoning';
+      el.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    // ── Card actions ──
+    function setAction(btn, action) {
+      const actions = btn.parentElement;
+      actions.querySelectorAll('.btn').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+    }
+
+    // ── Graph view toggle ──
+    function switchView(el, view) {
+      document.querySelectorAll('.graph-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      el.classList.add('active');
+      el.setAttribute('aria-selected', 'true');
+
+      if (view === 'tree') {
+        cy.layout({ name: 'breadthfirst', directed: true, spacingFactor: 1.2, padding: 20 }).run();
+      } else {
+        cy.layout({ name: 'cose', animate: true, animationDuration: 400, padding: 20, nodeRepulsion: () => 6000, idealEdgeLength: () => 80 }).run();
+      }
+    }
+
+    document.querySelectorAll('.criterion-item').forEach(item => {
+      item.setAttribute('role', 'button');
+      item.setAttribute('tabindex', '0');
+      item.setAttribute('aria-pressed', item.classList.contains('active') ? 'true' : 'false');
+      item.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        selectCriterion(item);
+      });
+    });
+
+    document.querySelectorAll('.card-actions .btn').forEach(btn => {
+      btn.setAttribute('aria-pressed', btn.classList.contains('active') ? 'true' : 'false');
+    });
+
+    // ── Cytoscape graph ──
+    const cy = cytoscape({
+      container: document.getElementById('cy-container'),
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'label': 'data(label)',
+            'font-size': '9px',
+            'color': '#f1f5f9',
+            'text-valign': 'bottom',
+            'text-margin-y': 6,
+            'background-color': 'data(color)',
+            'width': 'data(size)',
+            'height': 'data(size)',
+            'border-width': 2,
+            'border-color': '#1e293b',
+            'text-wrap': 'ellipsis',
+            'text-max-width': '80px',
+          }
+        },
+        {
+          selector: 'edge',
+          style: {
+            'width': 1.5,
+            'line-color': '#475569',
+            'target-arrow-color': '#475569',
+            'target-arrow-shape': 'triangle',
+            'curve-style': 'bezier',
+            'arrow-scale': 0.8,
+            'label': 'data(label)',
+            'font-size': '7px',
+            'color': '#64748b',
+            'text-rotation': 'autorotate',
+          }
+        },
+        {
+          selector: 'node:selected',
+          style: { 'border-color': '#f59e0b', 'border-width': 3 }
+        }
+      ],
+      elements: {
+        nodes: [
+          { data: { id: 'n1', label: 'Disorder of\nglucose metabolism', color: '#64748b', size: 22 } },
+          { data: { id: 'n2', label: 'Diabetes\nmellitus', color: '#64748b', size: 24 } },
+          { data: { id: 'n3', label: 'Type 2 diabetes\nmellitus', color: '#f59e0b', size: 30 } },
+          { data: { id: 'n4', label: 'T2DM without\ncomplication', color: '#3b82f6', size: 22 } },
+          { data: { id: 'n5', label: 'T2DM with\nnephropathy', color: '#3b82f6', size: 20 } },
+          { data: { id: 'n6', label: 'T2DM with\nretinopathy', color: '#3b82f6', size: 20 } },
+          { data: { id: 'n7', label: 'T2DM with\nneuropathy', color: '#64748b', size: 18 } },
+          { data: { id: 'n8', label: 'Type 1 diabetes\nmellitus', color: '#22c55e', size: 22 } },
+          { data: { id: 'n9', label: 'E11 (ICD10CM)', color: '#64748b', size: 18 } },
+          { data: { id: 'n10', label: 'Secondary\ndiabetes', color: '#64748b', size: 18 } },
+        ],
+        edges: [
+          { data: { source: 'n1', target: 'n2', label: 'Is a' } },
+          { data: { source: 'n2', target: 'n3', label: 'Is a' } },
+          { data: { source: 'n2', target: 'n8', label: 'Is a' } },
+          { data: { source: 'n2', target: 'n10', label: 'Is a' } },
+          { data: { source: 'n3', target: 'n4', label: 'Is a' } },
+          { data: { source: 'n3', target: 'n5', label: 'Is a' } },
+          { data: { source: 'n3', target: 'n6', label: 'Is a' } },
+          { data: { source: 'n3', target: 'n7', label: 'Is a' } },
+          { data: { source: 'n9', target: 'n3', label: 'Maps to' } },
+        ]
+      },
+      layout: {
+        name: 'cose',
+        padding: 20,
+        nodeRepulsion: () => 6000,
+        idealEdgeLength: () => 80,
+        animate: false,
+      },
+      userZoomingEnabled: true,
+      userPanningEnabled: true,
+      boxSelectionEnabled: false,
+    });
+
+    // ── Node click → update detail ──
+    const detailMap = {
+      n1: { name: 'Disorder of glucose metabolism', id: '4030518', vocab: 'SNOMED CT', domain: 'Condition', cls: 'Clinical Finding', freq: '8,241', desc: '45,392' },
+      n2: { name: 'Diabetes mellitus', id: '4008576', vocab: 'SNOMED CT', domain: 'Condition', cls: 'Clinical Finding', freq: '5,102', desc: '28,113' },
+      n3: { name: 'Type 2 diabetes mellitus', id: '201826', vocab: 'SNOMED CT', domain: 'Condition', cls: 'Clinical Finding', freq: '1,393', desc: '12,847' },
+      n4: { name: 'T2DM without complication', id: '443238', vocab: 'SNOMED CT', domain: 'Condition', cls: 'Clinical Finding', freq: '892', desc: '0' },
+      n5: { name: 'T2DM with nephropathy', id: '443731', vocab: 'SNOMED CT', domain: 'Condition', cls: 'Clinical Finding', freq: '214', desc: '38' },
+      n6: { name: 'T2DM with retinopathy', id: '443733', vocab: 'SNOMED CT', domain: 'Condition', cls: 'Clinical Finding', freq: '187', desc: '42' },
+      n7: { name: 'T2DM with neuropathy', id: '443734', vocab: 'SNOMED CT', domain: 'Condition', cls: 'Clinical Finding', freq: '156', desc: '21' },
+      n8: { name: 'Type 1 diabetes mellitus', id: '201254', vocab: 'SNOMED CT', domain: 'Condition', cls: 'Clinical Finding', freq: '312', desc: '4,291' },
+      n9: { name: 'Type 2 diabetes mellitus (E11)', id: '45770830', vocab: 'ICD10CM', domain: 'Condition', cls: 'ICD10 code', freq: '1,388', desc: '0' },
+      n10: { name: 'Secondary diabetes mellitus', id: '195771', vocab: 'SNOMED CT', domain: 'Condition', cls: 'Clinical Finding', freq: '67', desc: '312' },
+    };
+
+    cy.on('tap', 'node', function(evt) {
+      const d = detailMap[evt.target.id()];
+      if (!d) return;
+      document.getElementById('concept-detail').innerHTML = `
+        <div style="font-weight:600;margin-bottom:6px">${d.name}</div>
+        <div class="detail-row"><span class="detail-label">Concept ID</span><span class="detail-value">${d.id}</span></div>
+        <div class="detail-row"><span class="detail-label">Vocabulary</span><span class="detail-value">${d.vocab}</span></div>
+        <div class="detail-row"><span class="detail-label">Domain</span><span class="detail-value">${d.domain}</span></div>
+        <div class="detail-row"><span class="detail-label">Concept Class</span><span class="detail-value">${d.cls}</span></div>
+        <div class="detail-row"><span class="detail-label">CDM Frequency</span><span class="detail-value">${d.freq} persons</span></div>
+        <div class="detail-row"><span class="detail-label">Descendants</span><span class="detail-value">${d.desc}</span></div>
+      `;
+    });
+  </script>
+</body>
+</html>

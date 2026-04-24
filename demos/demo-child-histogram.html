@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OMOP Direct Children Distribution</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-panel: #1e293b;
+      --bg-card: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border: #475569;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 24px;
+      min-height: 100vh;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    header a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: inline-block;
+      margin-bottom: 16px;
+    }
+    header a:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+    h1 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+    .chart-container {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 32px 20px;
+      width: 100%;
+      max-width: 800px;
+    }
+    .chart-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .chart-subtitle {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+    #chart svg { display: block; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 20px;
+      width: 100%;
+      max-width: 800px;
+    }
+    .stat-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-value { font-size: 24px; font-weight: 700; }
+    .stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+    .insight-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-left: 3px solid #f59e0b;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-top: 20px;
+      width: 100%;
+      max-width: 800px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+    }
+    .insight-box strong { color: var(--text-primary); }
+    .insight-box .tag {
+      display: inline-block;
+      background: rgba(245, 158, 11, 0.15);
+      color: #fcd34d;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .bar-label { font-size: 12px; fill: var(--text-primary); }
+    .bar-value { font-size: 10px; fill: var(--text-secondary); }
+    .axis text { font-size: 11px; fill: var(--text-secondary); }
+    .axis line, .axis path { stroke: var(--border); }
+    .grid line { stroke: var(--border); stroke-opacity: 0.3; }
+
+    @media (max-width: 600px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      body { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="demo-all.html">← All Demos</a>
+  <h1>OMOP Vocabulary: Direct Children Distribution</h1>
+  <div class="subtitle">How many direct children (1-hop "Is a") does each parent concept have?</div>
+</header>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-value">2</div>
+    <div class="stat-label">Median</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">6.08</div>
+    <div class="stat-label">Average</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">19</div>
+    <div class="stat-label">95th Percentile</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value" style="color: #f87171;">1,864</div>
+    <div class="stat-label">Maximum</div>
+  </div>
+</div>
+
+<div class="chart-container" style="margin-top: 20px;">
+  <div class="chart-title">Parent Concept Count by Number of Direct Children</div>
+  <div class="chart-subtitle">Total 141,051 parent concepts (standard concepts with "Is a" children) &middot; OMOP CDM v5.4</div>
+  <div id="chart"></div>
+</div>
+
+<div class="insight-box">
+  <strong>Visualization Design Implications:</strong><br>
+  <span class="tag">T2DM = 16 children</span> — 95th percentile 수준. 화면에 전부 표시 가능.<br><br>
+  <strong>95% of concepts have ≤ 19 direct children</strong> — 대부분의 concept는 트리 뷰에서 자식을 전부 펼쳐도 문제 없음.<br>
+  <strong>50% have ≤ 2 children</strong> — 절반은 이진 트리 수준으로 매우 compact.<br>
+  <strong>상위 5% (20+ children)</strong> — "+N more" 접기 노드 필요. 최악의 경우 1,864개이지만 이는 Geography/Assessment scales 같은 비임상 도메인.<br><br>
+  <strong>결론:</strong> "자식 ≤ 20이면 전부 펼침, 20 초과면 freq 기준 상위 10개 + [+N more]" 전략이 <strong>95% 케이스를 커버</strong>합니다.
+</div>
+
+<script>
+const data = [
+  { bucket: '1', count: 45729, pct: 32.4, order: 0 },
+  { bucket: '2', count: 25606, pct: 18.2, order: 1 },
+  { bucket: '3', count: 16592, pct: 11.8, order: 2 },
+  { bucket: '4', count: 11489, pct: 8.1, order: 3 },
+  { bucket: '5', count: 7981, pct: 5.7, order: 4 },
+  { bucket: '6-10', count: 17891, pct: 12.7, order: 5 },
+  { bucket: '11-20', count: 9316, pct: 6.6, order: 6 },
+  { bucket: '21-50', count: 4653, pct: 3.3, order: 7 },
+  { bucket: '51-100', count: 1130, pct: 0.8, order: 8 },
+  { bucket: '101-500', count: 634, pct: 0.4, order: 9 },
+  { bucket: '500+', count: 30, pct: 0.0, order: 10 },
+];
+
+const container = document.getElementById('chart');
+const margin = { top: 16, right: 60, bottom: 40, left: 60 };
+const width = 736;
+const height = 360;
+const innerW = width - margin.left - margin.right;
+const innerH = height - margin.top - margin.bottom;
+
+const svg = d3.select('#chart')
+  .append('svg')
+  .attr('viewBox', `0 0 ${width} ${height}`)
+  .attr('width', '100%');
+
+const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+const x = d3.scaleBand()
+  .domain(data.map(d => d.bucket))
+  .range([0, innerW])
+  .padding(0.15);
+
+const y = d3.scaleLinear()
+  .domain([0, d3.max(data, d => d.count) * 1.1])
+  .range([innerH, 0]);
+
+// Grid
+g.append('g')
+  .attr('class', 'grid')
+  .call(d3.axisLeft(y).ticks(5).tickSize(-innerW).tickFormat(''))
+  .select('.domain').remove();
+
+// X axis
+g.append('g')
+  .attr('class', 'axis')
+  .attr('transform', `translate(0,${innerH})`)
+  .call(d3.axisBottom(x))
+  .selectAll('text')
+  .attr('fill', '#94a3b8');
+
+g.append('text')
+  .attr('x', innerW / 2)
+  .attr('y', innerH + 34)
+  .attr('text-anchor', 'middle')
+  .attr('font-size', '11px')
+  .attr('fill', '#64748b')
+  .text('Number of Direct Children');
+
+// Y axis
+g.append('g')
+  .attr('class', 'axis')
+  .call(d3.axisLeft(y).ticks(5).tickFormat(d => d >= 1000 ? (d/1000) + 'k' : d))
+  .selectAll('text')
+  .attr('fill', '#94a3b8');
+
+g.append('text')
+  .attr('transform', 'rotate(-90)')
+  .attr('x', -innerH / 2)
+  .attr('y', -45)
+  .attr('text-anchor', 'middle')
+  .attr('font-size', '11px')
+  .attr('fill', '#64748b')
+  .text('Parent Concepts');
+
+// Color scale
+function barColor(d) {
+  if (d.order <= 4) return '#3b82f6';    // 1-5: easily displayable
+  if (d.order <= 6) return '#8b5cf6';    // 6-20: displayable with care
+  return '#ef4444';                       // 21+: needs +N more
+}
+
+// Bars
+g.selectAll('.bar')
+  .data(data)
+  .enter()
+  .append('rect')
+  .attr('x', d => x(d.bucket))
+  .attr('y', innerH)
+  .attr('width', x.bandwidth())
+  .attr('height', 0)
+  .attr('fill', barColor)
+  .attr('fill-opacity', 0.85)
+  .attr('rx', 3)
+  .transition()
+  .duration(600)
+  .delay((d, i) => i * 50)
+  .attr('y', d => y(d.count))
+  .attr('height', d => innerH - y(d.count));
+
+// Percentage labels on bars
+g.selectAll('.bar-pct')
+  .data(data)
+  .enter()
+  .append('text')
+  .attr('x', d => x(d.bucket) + x.bandwidth() / 2)
+  .attr('y', d => y(d.count) - 6)
+  .attr('text-anchor', 'middle')
+  .attr('font-size', '10px')
+  .attr('font-weight', '600')
+  .attr('fill', d => barColor(d))
+  .text(d => d.pct >= 0.1 ? d.pct + '%' : '<0.1%');
+
+// Cumulative line
+let cumPct = 0;
+const cumData = data.map(d => {
+  cumPct += d.pct;
+  return { bucket: d.bucket, cum: cumPct };
+});
+
+const yCum = d3.scaleLinear().domain([0, 100]).range([innerH, 0]);
+
+const line = d3.line()
+  .x(d => x(d.bucket) + x.bandwidth() / 2)
+  .y(d => yCum(d.cum))
+  .curve(d3.curveMonotoneX);
+
+g.append('path')
+  .datum(cumData)
+  .attr('fill', 'none')
+  .attr('stroke', '#f59e0b')
+  .attr('stroke-width', 2)
+  .attr('stroke-dasharray', '4 3')
+  .attr('d', line);
+
+g.selectAll('.cum-dot')
+  .data(cumData)
+  .enter()
+  .append('circle')
+  .attr('cx', d => x(d.bucket) + x.bandwidth() / 2)
+  .attr('cy', d => yCum(d.cum))
+  .attr('r', 3)
+  .attr('fill', '#f59e0b');
+
+// Cumulative % labels (only key points)
+[0, 1, 4, 6, 7].forEach(i => {
+  const d = cumData[i];
+  g.append('text')
+    .attr('x', x(d.bucket) + x.bandwidth() / 2 + 4)
+    .attr('y', yCum(d.cum) - 8)
+    .attr('font-size', '9px')
+    .attr('fill', '#fbbf24')
+    .attr('font-weight', '600')
+    .text(Math.round(d.cum) + '%');
+});
+
+// Right Y axis for cumulative
+g.append('g')
+  .attr('class', 'axis')
+  .attr('transform', `translate(${innerW},0)`)
+  .call(d3.axisRight(yCum).ticks(5).tickFormat(d => d + '%'))
+  .selectAll('text')
+  .attr('fill', '#fbbf24');
+
+// Annotation: T2DM marker
+const t2dmBucket = '11-20';
+const t2dmX = x(t2dmBucket) + x.bandwidth() / 2;
+const t2dmY = y(data.find(d => d.bucket === t2dmBucket).count);
+
+g.append('line')
+  .attr('x1', t2dmX).attr('x2', t2dmX)
+  .attr('y1', t2dmY - 20).attr('y2', t2dmY - 50)
+  .attr('stroke', '#f59e0b').attr('stroke-width', 1.5);
+
+g.append('text')
+  .attr('x', t2dmX)
+  .attr('y', t2dmY - 54)
+  .attr('text-anchor', 'middle')
+  .attr('font-size', '10px')
+  .attr('font-weight', '600')
+  .attr('fill', '#f59e0b')
+  .text('T2DM = 16');
+
+// Threshold annotation
+const threshX = x('21-50');
+g.append('line')
+  .attr('x1', threshX - 2).attr('x2', threshX - 2)
+  .attr('y1', 0).attr('y2', innerH)
+  .attr('stroke', '#ef4444').attr('stroke-width', 1)
+  .attr('stroke-dasharray', '3 3').attr('opacity', 0.6);
+
+g.append('text')
+  .attr('x', threshX + 4)
+  .attr('y', 12)
+  .attr('font-size', '9px')
+  .attr('fill', '#f87171')
+  .text('"+N more" threshold →');
+
+// Legend
+const legend = g.append('g').attr('transform', `translate(${innerW - 180}, 4)`);
+[
+  { color: '#3b82f6', label: '1-5: fully expandable' },
+  { color: '#8b5cf6', label: '6-20: expandable' },
+  { color: '#ef4444', label: '21+: needs +N more' },
+  { color: '#f59e0b', label: 'Cumulative %', dash: true },
+].forEach((item, i) => {
+  const row = legend.append('g').attr('transform', `translate(0, ${i * 16})`);
+  if (item.dash) {
+    row.append('line').attr('x1', 0).attr('x2', 12).attr('y', 4)
+      .attr('stroke', item.color).attr('stroke-width', 2).attr('stroke-dasharray', '3 2');
+  } else {
+    row.append('rect').attr('width', 12).attr('height', 9).attr('rx', 2)
+      .attr('fill', item.color).attr('fill-opacity', 0.85);
+  }
+  row.append('text').attr('x', 16).attr('dy', '0.7em')
+    .attr('font-size', '9px').attr('fill', '#94a3b8').text(item.label);
+});
+</script>
+</body>
+</html>

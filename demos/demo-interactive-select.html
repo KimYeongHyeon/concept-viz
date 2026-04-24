@@ -1,0 +1,1901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Visual Selection — Drag, Lasso & Concept Set Builder</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-panel: #1e293b;
+      --bg-card: #334155;
+      --bg-card-hover: #3b4d66;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border: #475569;
+      --color-condition: #3b82f6;
+      --color-drug: #22c55e;
+      --color-measurement: #f59e0b;
+      --color-procedure: #a855f7;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      line-height: 1.5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 16px; min-width: 0; }
+    .back-link {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .back-link:hover { color: var(--text-primary); border-color: #94a3b8; background: var(--bg-card); }
+    .header h1 { font-size: 16px; font-weight: 600; min-width: 0; }
+    .header-badge {
+      background: linear-gradient(135deg, #1d4ed8 0%, #7c3aed 100%);
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #e0e7ff;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .toolbar-label { font-size: 12px; color: var(--text-secondary); margin-right: 4px; }
+    .mode-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .mode-btn:hover { color: var(--text-primary); border-color: #94a3b8; }
+    .mode-btn.active {
+      background: #1d4ed8;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    .mode-btn .icon { font-size: 14px; }
+    .toolbar-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+    .action-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .action-btn:hover { color: var(--text-primary); background: var(--bg-card); }
+    .action-btn.primary {
+      background: #16a34a;
+      border-color: #22c55e;
+      color: #fff;
+    }
+    .action-btn.primary:hover { background: #15803d; }
+    .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    button:focus-visible,
+    a:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 2px solid #fbbf24;
+      outline-offset: 2px;
+    }
+
+    /* ── Main layout ── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    /* ── Graph canvas ── */
+    .canvas-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: radial-gradient(ellipse at center, #0d1f3c 0%, #0f172a 70%);
+      min-width: 0;
+      min-height: 0;
+    }
+    #graph-svg {
+      width: 100%;
+      height: 100%;
+      cursor: default;
+    }
+    #graph-svg.lasso-mode { cursor: crosshair; }
+    #graph-svg.drag-mode { cursor: grab; }
+
+    /* Tooltip */
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      background: #1e293b;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      max-width: 220px;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 100;
+    }
+    .tooltip.visible { opacity: 1; }
+    .tooltip-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .tooltip-id { color: var(--text-secondary); font-size: 11px; margin-bottom: 6px; }
+    .tooltip-row { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; }
+    .tooltip-row span:first-child { color: var(--text-secondary); }
+
+    /* Selection floating panel */
+    .selection-panel {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-panel);
+      border: 1px solid #3b82f6;
+      border-radius: 8px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      z-index: 50;
+      max-width: calc(100% - 24px);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .selection-panel.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .selection-count { font-weight: 600; color: #60a5fa; }
+    .sel-btn {
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .sel-btn.add { background: #1d4ed8; border-color: #3b82f6; }
+    .sel-btn:hover { filter: brightness(1.15); }
+
+    /* Subtree panel */
+    .subtree-panel {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-panel);
+      border: 1px solid #a855f7;
+      border-radius: 8px;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 50;
+      max-width: calc(100% - 24px);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .subtree-panel.visible { opacity: 1; pointer-events: all; }
+
+    /* ── Right panel ── */
+    .right-panel {
+      width: 300px;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .panel-title { font-size: 13px; font-weight: 600; }
+    .panel-count {
+      background: var(--bg-card);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      margin: 12px;
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+      transition: all 0.3s;
+      cursor: default;
+    }
+    .drop-zone.glow {
+      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.08);
+      color: #60a5fa;
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.2);
+    }
+    .drop-zone-icon { font-size: 20px; margin-bottom: 4px; }
+
+    /* Concept set list */
+    .concept-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 12px;
+    }
+    .concept-list::-webkit-scrollbar { width: 4px; }
+    .concept-list::-webkit-scrollbar-track { background: transparent; }
+    .concept-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .concept-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      transition: all 0.2s;
+      background: var(--bg-card);
+    }
+    .concept-item:hover { border-color: #94a3b8; }
+    .domain-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .concept-info { flex: 1; min-width: 0; }
+    .concept-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .concept-id { font-size: 11px; color: var(--text-secondary); }
+    .concept-desc-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      margin-top: 4px;
+      user-select: none;
+    }
+    .concept-desc-toggle:hover { color: var(--text-primary); }
+    .desc-count { color: #22c55e; }
+    .remove-btn {
+      width: 18px;
+      height: 18px;
+      border: none;
+      background: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      flex-shrink: 0;
+      border-radius: 3px;
+      transition: all 0.15s;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .remove-btn:hover { background: #dc2626; color: #fff; }
+
+    /* Panel footer */
+    .panel-footer {
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+    }
+    .summary-bar {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      padding: 6px 10px;
+      background: var(--bg-card);
+      border-radius: 5px;
+    }
+    .summary-bar strong { color: var(--text-primary); }
+    .footer-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .export-btn {
+      flex: 1;
+      padding: 7px;
+      border: 1px solid #22c55e;
+      border-radius: 6px;
+      background: rgba(34, 197, 94, 0.1);
+      color: #4ade80;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .export-btn:hover { background: rgba(34, 197, 94, 0.2); }
+    .export-btn[data-empty="true"] {
+      opacity: 0.6;
+    }
+    .export-status {
+      min-height: 16px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: #fbbf24;
+    }
+    .clear-btn {
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .clear-btn:hover { background: rgba(220, 38, 38, 0.1); border-color: #dc2626; color: #f87171; }
+
+    /* ── Bottom bar ── */
+    .bottom-bar {
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 11px;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .mode-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 5px;
+      background: var(--bg-card);
+      font-weight: 600;
+    }
+    .mode-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+    .legend-group { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .legend-item { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .legend-line { width: 16px; height: 2px; }
+    .legend-dashed { border-top: 2px dashed; }
+    .shortcuts { margin-left: auto; color: var(--text-secondary); white-space: nowrap; }
+    .shortcuts kbd {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: monospace;
+      font-size: 10px;
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: min(580px, calc(100vw - 32px));
+      max-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title { font-size: 15px; font-weight: 600; }
+    .modal-close {
+      width: 28px; height: 28px;
+      border: none; background: none;
+      color: var(--text-secondary);
+      font-size: 18px; cursor: pointer;
+      border-radius: 5px;
+      transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-close:hover { background: var(--bg-card); color: var(--text-primary); }
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+    .modal-body pre {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #a5f3fc;
+      overflow-x: auto;
+    }
+    .modal-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .modal-status {
+      margin-right: auto;
+      font-size: 12px;
+      color: #4ade80;
+    }
+    .modal-status.error { color: #f87171; }
+
+    /* SVG node styles */
+    .node circle, .node polygon { transition: all 0.2s; }
+    .node.selected circle, .node.selected polygon {
+      stroke: #fff !important;
+      stroke-width: 3px;
+    }
+    .node.in-set circle, .node.in-set polygon {
+      stroke: #4ade80 !important;
+      stroke-width: 2.5px;
+      filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.5));
+    }
+    .node.in-set.selected circle, .node.in-set.selected polygon {
+      stroke: #fff !important;
+    }
+    .node.highlighted circle, .node.highlighted polygon {
+      stroke: #c084fc !important;
+      stroke-width: 2.5px;
+      filter: drop-shadow(0 0 6px rgba(192, 132, 252, 0.5));
+    }
+    .node text { pointer-events: none; }
+    .node .checkmark { font-size: 10px; fill: #4ade80; pointer-events: none; }
+
+    .link { transition: opacity 0.2s; }
+
+    /* Lasso path */
+    .lasso-path {
+      fill: rgba(59, 130, 246, 0.15);
+      stroke: rgba(59, 130, 246, 0.7);
+      stroke-width: 1.5;
+      stroke-dasharray: 4 3;
+      pointer-events: none;
+    }
+
+    /* Node drag ghost */
+    .drag-ghost {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    /* Add to set animation */
+    @keyframes flyToPanel {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.3) translate(400px, -200px); }
+    }
+    .fly-anim { animation: flyToPanel 0.5s ease-in forwards; }
+
+    @keyframes itemAppear {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .concept-item.new { animation: itemAppear 0.3s ease-out; }
+
+    /* Zoom controls */
+    .zoom-controls {
+      position: absolute;
+      bottom: 60px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .zoom-btn {
+      width: 32px; height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-panel);
+      color: var(--text-secondary);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .zoom-btn:hover { background: var(--bg-card); color: var(--text-primary); }
+
+    @media (max-width: 700px) {
+      body { height: 100dvh; }
+      .header {
+        padding: 10px 12px;
+        gap: 8px;
+      }
+      .header-left {
+        flex: 1 1 auto;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      .header h1 {
+        font-size: 13px;
+        line-height: 1.3;
+        white-space: normal;
+      }
+      .header-badge { display: none; }
+      .back-link {
+        padding: 5px 8px;
+        flex-shrink: 0;
+      }
+      .toolbar {
+        padding: 8px 10px;
+        gap: 6px;
+      }
+      .toolbar-label {
+        flex: 1 1 100%;
+        margin-right: 0;
+      }
+      .toolbar-sep { display: none; }
+      .mode-btn,
+      .action-btn {
+        min-height: 36px;
+        padding: 7px 10px;
+        justify-content: center;
+      }
+      .main {
+        flex-direction: column;
+      }
+      .canvas-area {
+        flex: 1 1 auto;
+        min-height: 260px;
+      }
+      .right-panel {
+        width: 100%;
+        max-width: 100%;
+        height: 260px;
+        border-left: 0;
+        border-top: 1px solid var(--border);
+      }
+      .panel-header,
+      .panel-footer {
+        padding: 10px 12px;
+      }
+      .drop-zone {
+        margin: 8px 12px;
+        padding: 8px;
+      }
+      .drop-zone-icon { display: none; }
+      .footer-buttons .export-btn {
+        flex: 1 1 180px;
+      }
+      .clear-btn {
+        flex: 1 1 80px;
+      }
+      .bottom-bar {
+        padding: 8px 10px;
+        gap: 8px 10px;
+        flex-wrap: wrap;
+        overflow-x: hidden;
+      }
+      .legend-group {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+      }
+      .shortcuts {
+        margin-left: 0;
+        white-space: normal;
+        flex: 1 1 100%;
+      }
+      .selection-panel,
+      .subtree-panel {
+        padding: 8px 10px;
+        gap: 8px;
+      }
+      .zoom-controls {
+        bottom: 16px;
+        right: 10px;
+      }
+      .modal {
+        width: calc(100vw - 24px);
+        max-height: calc(100dvh - 32px);
+      }
+      .modal-header,
+      .modal-body,
+      .modal-footer {
+        padding: 12px;
+      }
+      .modal-footer {
+        flex-wrap: wrap;
+      }
+      .modal-status {
+        flex: 1 1 100%;
+        margin-right: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <a href="demo.html" class="back-link">&#8592; Back to Main Demo</a>
+    <h1>Interactive Visual Selection — Drag, Lasso &amp; Concept Set Builder</h1>
+  </div>
+  <span class="header-badge">OMOP CDM / CIRCE</span>
+</header>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <span class="toolbar-label">Mode:</span>
+  <button class="mode-btn active" id="btn-click" onclick="setMode('click')" title="Single click to select/deselect">
+    <span class="icon">&#9654;</span> Click
+  </button>
+  <button class="mode-btn" id="btn-lasso" onclick="setMode('lasso')" title="Shift+draw to lasso-select">
+    <span class="icon">&#9654;</span> Lasso
+  </button>
+  <button class="mode-btn" id="btn-subtree" onclick="setMode('subtree')" title="Select a node's full subtree">
+    <span class="icon">&#11302;</span> Subtree
+  </button>
+  <div class="toolbar-sep"></div>
+  <button class="action-btn" id="btn-add-selected" onclick="addSelectedToSet()" disabled>
+    <span>&#43;</span> Add Selected to Set
+  </button>
+  <button class="action-btn" id="btn-clear-sel" onclick="clearSelection()" disabled>
+    <span>&#10005;</span> Clear Selection
+  </button>
+  <div class="toolbar-sep"></div>
+  <button class="action-btn" onclick="resetZoom()">&#8635; Reset View</button>
+  <div class="toolbar-sep"></div>
+  <span class="toolbar-label">Layout:</span>
+  <button class="mode-btn active" id="btn-layout-graph" onclick="setLayout('graph')" title="Force-directed graph">
+    <span class="icon">&#9678;</span> Graph
+  </button>
+  <button class="mode-btn" id="btn-layout-tree" onclick="setLayout('tree')" title="Hierarchical tree">
+    <span class="icon">&#9776;</span> Tree
+  </button>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Graph canvas -->
+  <div class="canvas-area" id="canvas-area">
+    <svg id="graph-svg"></svg>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip">
+      <div class="tooltip-title" id="tt-name"></div>
+      <div class="tooltip-id" id="tt-id"></div>
+      <div class="tooltip-row"><span>Domain</span><span id="tt-domain"></span></div>
+      <div class="tooltip-row"><span>CDM Freq.</span><span id="tt-freq"></span></div>
+      <div class="tooltip-row"><span>Standard</span><span id="tt-std"></span></div>
+    </div>
+
+    <!-- Selection floating panel (lasso result) -->
+    <div class="selection-panel" id="selection-panel">
+      <span class="selection-count" id="sel-count">0</span>
+      <span>nodes selected</span>
+      <button class="sel-btn add" onclick="addSelectedToSet()">Add to Set</button>
+      <button class="sel-btn" onclick="clearSelection()">Clear</button>
+    </div>
+
+    <!-- Subtree panel -->
+    <div class="subtree-panel" id="subtree-panel">
+      <span id="subtree-label">0 descendants found</span>
+      <button class="sel-btn add" onclick="addSubtreeToSet()">Include Descendants</button>
+      <button class="sel-btn" onclick="clearSubtree()">Cancel</button>
+    </div>
+
+    <!-- Zoom controls -->
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick="zoomBy(1.3)" title="Zoom in">+</button>
+      <button class="zoom-btn" onclick="zoomBy(0.77)" title="Zoom out">&#8722;</button>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+    <div class="panel-header">
+      <span class="panel-title">Concept Set Builder</span>
+      <span class="panel-count" id="set-count">0 concepts</span>
+    </div>
+
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-zone-icon">&#8681;</div>
+      <div>Drop concept here</div>
+      <div style="font-size:10px;margin-top:3px;color:#64748b">or drag from graph</div>
+    </div>
+
+    <div class="concept-list" id="concept-list"></div>
+
+    <div class="panel-footer">
+      <div class="summary-bar" id="summary-bar">
+        <strong>0</strong> concepts selected, <strong>0</strong> total with descendants
+      </div>
+      <div class="footer-buttons">
+        <button class="export-btn" id="export-btn" type="button" onclick="showExportModal()" aria-describedby="export-status" data-empty="true">Export as CIRCE JSON</button>
+        <button class="clear-btn" type="button" onclick="clearConceptSet()">Clear All</button>
+      </div>
+      <div class="export-status" id="export-status" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom bar -->
+<div class="bottom-bar">
+  <div class="mode-indicator">
+    <div class="mode-dot" id="mode-dot"></div>
+    <span id="mode-label">Click Mode</span>
+  </div>
+  <div class="legend-group">
+    <span style="font-size:11px;color:#64748b">Domains:</span>
+    <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Condition</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Drug</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Measurement</div>
+  </div>
+  <div class="legend-group">
+    <span style="font-size:11px;color:#64748b">Edges:</span>
+    <div class="legend-item"><div class="legend-line" style="background:#6b7280"></div>Is a</div>
+    <div class="legend-item"><div class="legend-line legend-dashed" style="border-color:#60a5fa"></div>Maps to</div>
+    <div class="legend-item"><div class="legend-line legend-dashed" style="border-color:#4ade80"></div>Has drug</div>
+    <div class="legend-item"><div class="legend-line legend-dashed" style="border-color:#fbbf24"></div>Measured by</div>
+  </div>
+  <div class="shortcuts">
+    <kbd>Shift</kbd>+Drag: Lasso &nbsp;|&nbsp;
+    <kbd>Dbl-click</kbd>: Subtree &nbsp;|&nbsp;
+    <kbd>Scroll</kbd>: Zoom
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">CIRCE JSON Export</span>
+      <button class="modal-close" type="button" onclick="closeModalDirect()" aria-label="Close export dialog">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <pre id="modal-json"></pre>
+    </div>
+    <div class="modal-footer">
+      <span class="modal-status" id="copy-status" role="status" aria-live="polite"></span>
+      <button class="action-btn" id="copy-json-btn" type="button" onclick="copyJSON(this)">Copy to Clipboard</button>
+      <button class="action-btn" type="button" onclick="closeModalDirect()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// DATA
+// ─────────────────────────────────────────────
+const DOMAIN_COLORS = {
+  Condition: '#3b82f6',
+  Drug: '#22c55e',
+  Measurement: '#f59e0b',
+  Procedure: '#a855f7'
+};
+
+const NODES_DATA = [
+  // Condition domain
+  { id: 'C1', name: 'Diabetes mellitus', conceptId: 201254, domain: 'Condition', freq: 9800, standard: true, x: 400, y: 280 },
+  { id: 'C2', name: 'Type 2 diabetes mellitus', conceptId: 201826, domain: 'Condition', freq: 8200, standard: true, x: 280, y: 380 },
+  { id: 'C3', name: 'Type 1 diabetes mellitus', conceptId: 201254, domain: 'Condition', freq: 2100, standard: true, x: 520, y: 380 },
+  { id: 'C4', name: 'T2DM without complication', conceptId: 443238, domain: 'Condition', freq: 5900, standard: true, x: 160, y: 480 },
+  { id: 'C5', name: 'T2DM with nephropathy', conceptId: 443767, domain: 'Condition', freq: 1800, standard: true, x: 260, y: 500 },
+  { id: 'C6', name: 'T2DM with retinopathy', conceptId: 443238, domain: 'Condition', freq: 1500, standard: true, x: 340, y: 510 },
+  { id: 'C7', name: 'T2DM with neuropathy', conceptId: 443589, domain: 'Condition', freq: 1100, standard: true, x: 200, y: 570 },
+  { id: 'C8', name: 'T2DM with ketoacidosis', conceptId: 443727, domain: 'Condition', freq: 620, standard: true, x: 310, y: 580 },
+  { id: 'C9', name: 'Diabetic ketoacidosis', conceptId: 4096041, domain: 'Condition', freq: 780, standard: true, x: 460, y: 480 },
+  { id: 'C10', name: 'Hyperglycemia', conceptId: 432661, domain: 'Condition', freq: 3200, standard: true, x: 580, y: 460 },
+  { id: 'C11', name: 'Disorder of glucose metabolism', conceptId: 4193704, domain: 'Condition', freq: 4100, standard: false, x: 400, y: 170 },
+  // Drug domain
+  { id: 'D1', name: 'Liraglutide', conceptId: 1510202, domain: 'Drug', freq: 2900, standard: true, x: 80, y: 300 },
+  { id: 'D2', name: 'Metformin', conceptId: 1503297, domain: 'Drug', freq: 7100, standard: true, x: 80, y: 400 },
+  { id: 'D3', name: 'Insulin', conceptId: 1567198, domain: 'Drug', freq: 5400, standard: true, x: 80, y: 500 },
+  { id: 'D4', name: 'Empagliflozin', conceptId: 45774435, domain: 'Drug', freq: 1900, standard: true, x: 80, y: 200 },
+  { id: 'D5', name: 'Semaglutide', conceptId: 2200644, domain: 'Drug', freq: 1300, standard: true, x: 160, y: 160 },
+  { id: 'DC1', name: 'GLP-1 receptor agonist', conceptId: 21600001, domain: 'Drug', freq: 4200, standard: true, x: 100, y: 240 },
+  { id: 'DC2', name: 'SGLT2 inhibitor', conceptId: 21600002, domain: 'Drug', freq: 2800, standard: true, x: 100, y: 340 },
+  { id: 'DC3', name: 'Biguanide', conceptId: 21600003, domain: 'Drug', freq: 7200, standard: true, x: 100, y: 440 },
+  // Measurement domain
+  { id: 'M1', name: 'HbA1c', conceptId: 3004410, domain: 'Measurement', freq: 6800, standard: true, x: 680, y: 280 },
+  { id: 'M2', name: 'Fasting glucose', conceptId: 3037110, domain: 'Measurement', freq: 5200, standard: true, x: 700, y: 380 },
+  { id: 'M3', name: 'eGFR', conceptId: 3030354, domain: 'Measurement', freq: 4100, standard: true, x: 720, y: 460 },
+  { id: 'M4', name: 'Serum creatinine', conceptId: 3016723, domain: 'Measurement', freq: 4800, standard: true, x: 740, y: 360 },
+  { id: 'M5', name: 'Urine albumin', conceptId: 3006906, domain: 'Measurement', freq: 2300, standard: true, x: 730, y: 520 }
+];
+
+const LINKS_DATA = [
+  // Is a (hierarchy)
+  { source: 'C2', target: 'C1', type: 'is_a' },
+  { source: 'C3', target: 'C1', type: 'is_a' },
+  { source: 'C4', target: 'C2', type: 'is_a' },
+  { source: 'C5', target: 'C2', type: 'is_a' },
+  { source: 'C6', target: 'C2', type: 'is_a' },
+  { source: 'C7', target: 'C2', type: 'is_a' },
+  { source: 'C8', target: 'C2', type: 'is_a' },
+  { source: 'C9', target: 'C3', type: 'is_a' },
+  { source: 'C1', target: 'C11', type: 'is_a' },
+  { source: 'C10', target: 'C11', type: 'is_a' },
+  // Drug class
+  { source: 'D1', target: 'DC1', type: 'is_a' },
+  { source: 'D5', target: 'DC1', type: 'is_a' },
+  { source: 'D4', target: 'DC2', type: 'is_a' },
+  { source: 'D2', target: 'DC3', type: 'is_a' },
+  // Maps to (non-standard)
+  { source: 'C11', target: 'C1', type: 'maps_to' },
+  // Has drug (treatment)
+  { source: 'C2', target: 'DC1', type: 'has_drug' },
+  { source: 'C2', target: 'DC2', type: 'has_drug' },
+  { source: 'C2', target: 'DC3', type: 'has_drug' },
+  { source: 'C3', target: 'D3', type: 'has_drug' },
+  // Measured by
+  { source: 'C1', target: 'M1', type: 'measured_by' },
+  { source: 'C2', target: 'M2', type: 'measured_by' },
+  { source: 'C5', target: 'M3', type: 'measured_by' },
+  { source: 'C5', target: 'M4', type: 'measured_by' },
+  { source: 'C5', target: 'M5', type: 'measured_by' }
+];
+
+// Build adjacency for subtree
+const childMap = {};
+NODES_DATA.forEach(n => { childMap[n.id] = []; });
+LINKS_DATA.forEach(l => {
+  if (l.type === 'is_a') {
+    if (!childMap[l.target]) childMap[l.target] = [];
+    childMap[l.target].push(l.source);
+  }
+});
+
+function getDescendants(id) {
+  const visited = new Set();
+  const queue = [id];
+  while (queue.length) {
+    const cur = queue.shift();
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    (childMap[cur] || []).forEach(c => queue.push(c));
+  }
+  visited.delete(id);
+  return [...visited];
+}
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let currentMode = 'click';
+let selectedNodes = new Set();
+let conceptSet = new Map(); // id -> { node, includeDescendants }
+let subtreeRoot = null;
+let subtreeNodes = [];
+let simulation = null;
+let svgG = null;
+let zoomBehavior = null;
+let lastFocusedElement = null;
+
+// ─────────────────────────────────────────────
+// D3 SETUP
+// ─────────────────────────────────────────────
+const svg = d3.select('#graph-svg');
+const canvasArea = document.getElementById('canvas-area');
+const W = canvasArea.clientWidth;
+const H = canvasArea.clientHeight;
+
+svg.attr('width', W).attr('height', H);
+
+// Zoom
+zoomBehavior = d3.zoom()
+  .scaleExtent([0.3, 3])
+  .on('zoom', (event) => {
+    svgG.attr('transform', event.transform);
+  });
+svg.call(zoomBehavior);
+
+// Main group
+svgG = svg.append('g');
+
+// Arrow markers
+const defs = svg.append('defs');
+['is_a', 'maps_to', 'has_drug', 'measured_by'].forEach(type => {
+  const colors = { is_a: '#6b7280', maps_to: '#60a5fa', has_drug: '#4ade80', measured_by: '#fbbf24' };
+  defs.append('marker')
+    .attr('id', `arrow-${type}`)
+    .attr('viewBox', '0 -4 8 8')
+    .attr('refX', 12)
+    .attr('refY', 0)
+    .attr('markerWidth', 6)
+    .attr('markerHeight', 6)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-4L8,0L0,4')
+    .attr('fill', colors[type])
+    .attr('opacity', 0.7);
+});
+
+// Compute node radius based on frequency
+const freqExtent = d3.extent(NODES_DATA, d => d.freq);
+const radiusScale = d3.scaleSqrt().domain(freqExtent).range([12, 28]);
+
+// Build simulation
+const nodes = NODES_DATA.map(d => ({ ...d, r: radiusScale(d.freq) }));
+const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+const links = LINKS_DATA.map(l => ({ ...l, source: nodeMap[l.source], target: nodeMap[l.target] }));
+
+simulation = d3.forceSimulation(nodes)
+  .force('link', d3.forceLink(links).id(d => d.id).distance(d => {
+    if (d.type === 'is_a') return 90;
+    if (d.type === 'has_drug') return 120;
+    return 100;
+  }).strength(0.4))
+  .force('charge', d3.forceManyBody().strength(-200))
+  .force('center', d3.forceCenter(W / 2, H / 2))
+  .force('collision', d3.forceCollide().radius(d => d.r + 8))
+  .alphaDecay(0.025);
+
+// Draw links
+const linkG = svgG.append('g').attr('class', 'links');
+const linkEl = linkG.selectAll('.link')
+  .data(links)
+  .enter().append('line')
+  .attr('class', 'link')
+  .attr('stroke', d => ({
+    is_a: '#4b5563', maps_to: '#1d4ed8', has_drug: '#166534', measured_by: '#92400e'
+  }[d.type] || '#4b5563'))
+  .attr('stroke-width', d => d.type === 'is_a' ? 1.5 : 1)
+  .attr('stroke-dasharray', d => d.type === 'is_a' ? null : (d.type === 'maps_to' ? '4 3' : '5 4'))
+  .attr('stroke-opacity', 0.6)
+  .attr('marker-end', d => `url(#arrow-${d.type})`);
+
+// Draw nodes
+const nodeG = svgG.append('g').attr('class', 'nodes');
+const nodeEl = nodeG.selectAll('.node')
+  .data(nodes)
+  .enter().append('g')
+  .attr('class', 'node')
+  .attr('data-id', d => d.id)
+  .call(d3.drag()
+    .on('start', dragStarted)
+    .on('drag', dragged)
+    .on('end', dragEnded)
+  )
+  .on('click', nodeClicked)
+  .on('dblclick', nodeDoubleClicked)
+  .on('mouseover', nodeMouseOver)
+  .on('mouseout', nodeMouseOut);
+
+// Shape: circle for standard, diamond for non-standard
+nodeEl.each(function(d) {
+  const g = d3.select(this);
+  const color = DOMAIN_COLORS[d.domain] || '#94a3b8';
+  if (d.standard) {
+    g.append('circle')
+      .attr('r', d.r)
+      .attr('fill', color)
+      .attr('fill-opacity', 0.85)
+      .attr('stroke', d3.color(color).darker(0.8))
+      .attr('stroke-width', 1.5);
+  } else {
+    // Diamond
+    const s = d.r * 1.2;
+    g.append('polygon')
+      .attr('points', `0,${-s} ${s},0 0,${s} ${-s},0`)
+      .attr('fill', color)
+      .attr('fill-opacity', 0.85)
+      .attr('stroke', d3.color(color).darker(0.8))
+      .attr('stroke-width', 1.5);
+  }
+
+  // Label
+  g.append('text')
+    .attr('dy', d.r + 12)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', 10)
+    .attr('fill', '#cbd5e1')
+    .attr('font-family', 'Inter, sans-serif')
+    .text(d.name.length > 20 ? d.name.slice(0, 18) + '…' : d.name);
+});
+
+// Tick
+simulation.on('tick', () => {
+  linkEl
+    .attr('x1', d => d.source.x)
+    .attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x)
+    .attr('y2', d => d.target.y);
+  nodeEl.attr('transform', d => `translate(${d.x},${d.y})`);
+});
+
+// ─────────────────────────────────────────────
+// LASSO
+// ─────────────────────────────────────────────
+let lassoActive = false;
+let lassoPoints = [];
+let lassoPathEl = null;
+
+svg.on('mousedown', (event) => {
+  if (currentMode !== 'lasso') return;
+  if (event.target !== svg.node() && !event.target.closest('.links')) {
+    // Clicked on a node — don't start lasso
+    return;
+  }
+  lassoActive = true;
+  lassoPoints = [];
+  const [x, y] = d3.pointer(event, svgG.node());
+  lassoPoints.push([x, y]);
+
+  if (lassoPathEl) lassoPathEl.remove();
+  lassoPathEl = svgG.append('path').attr('class', 'lasso-path');
+
+  event.preventDefault();
+  event.stopPropagation();
+});
+
+svg.on('mousemove', (event) => {
+  if (!lassoActive) return;
+  const [x, y] = d3.pointer(event, svgG.node());
+  lassoPoints.push([x, y]);
+
+  if (lassoPathEl && lassoPoints.length > 1) {
+    const pathData = 'M' + lassoPoints.map(p => p.join(',')).join('L') + 'Z';
+    lassoPathEl.attr('d', pathData);
+  }
+});
+
+svg.on('mouseup', (event) => {
+  if (!lassoActive) return;
+  lassoActive = false;
+
+  // Find nodes inside lasso
+  if (lassoPoints.length > 3) {
+    selectedNodes.clear();
+    nodes.forEach(n => {
+      if (pointInPolygon([n.x, n.y], lassoPoints)) {
+        selectedNodes.add(n.id);
+      }
+    });
+    updateNodeStyles();
+    updateSelectionPanel();
+  }
+
+  setTimeout(() => {
+    if (lassoPathEl) { lassoPathEl.remove(); lassoPathEl = null; }
+  }, 300);
+});
+
+function pointInPolygon(point, polygon) {
+  let inside = false;
+  const x = point[0], y = point[1];
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0], yi = polygon[i][1];
+    const xj = polygon[j][0], yj = polygon[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Keyboard: shift to auto-switch to lasso
+document.addEventListener('keydown', (e) => {
+  const modalOpen = document.getElementById('modal-overlay')?.classList.contains('open');
+  if (e.key === 'Escape' && modalOpen) {
+    e.preventDefault();
+    closeModalDirect();
+    return;
+  }
+  if (modalOpen) return;
+
+  if (e.key === 'Shift' && currentMode === 'click') {
+    setMode('lasso', true);
+  }
+});
+document.addEventListener('keyup', (e) => {
+  const modalOpen = document.getElementById('modal-overlay')?.classList.contains('open');
+  if (modalOpen) return;
+
+  if (e.key === 'Shift' && currentMode === 'lasso') {
+    setMode('click', true);
+  }
+});
+
+// ─────────────────────────────────────────────
+// NODE INTERACTIONS
+// ─────────────────────────────────────────────
+function nodeClicked(event, d) {
+  event.stopPropagation();
+  if (currentMode === 'click') {
+    if (selectedNodes.has(d.id)) {
+      selectedNodes.delete(d.id);
+    } else {
+      selectedNodes.add(d.id);
+    }
+    updateNodeStyles();
+    updateSelectionPanel();
+  } else if (currentMode === 'subtree') {
+    showSubtree(d);
+  }
+}
+
+function nodeDoubleClicked(event, d) {
+  event.stopPropagation();
+  showSubtree(d);
+}
+
+function showSubtree(d) {
+  subtreeRoot = d;
+  subtreeNodes = getDescendants(d.id);
+  // Also highlight the root
+  selectedNodes.clear();
+  selectedNodes.add(d.id);
+  subtreeNodes.forEach(id => selectedNodes.add(id));
+  updateNodeStyles(true);
+
+  const panel = document.getElementById('subtree-panel');
+  document.getElementById('subtree-label').textContent =
+    `${d.name}: ${subtreeNodes.length} descendants found`;
+  panel.classList.add('visible');
+  document.getElementById('selection-panel').classList.remove('visible');
+}
+
+function clearSubtree() {
+  subtreeRoot = null;
+  subtreeNodes = [];
+  selectedNodes.clear();
+  updateNodeStyles();
+  document.getElementById('subtree-panel').classList.remove('visible');
+  updateSelectionPanel();
+}
+
+function addSubtreeToSet() {
+  if (!subtreeRoot) return;
+  addNodesToSet([subtreeRoot.id, ...subtreeNodes]);
+  clearSubtree();
+}
+
+// ─────────────────────────────────────────────
+// DRAG (node physics drag)
+// ─────────────────────────────────────────────
+let draggingNode = null;
+let dragStartPos = null;
+
+function dragStarted(event, d) {
+  if (currentLayout === 'graph') {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+  }
+  d._treeFx = d.fx; // save tree position
+  d._treeFy = d.fy;
+  d.fx = d.x;
+  d.fy = d.y;
+  draggingNode = d;
+  dragStartPos = { x: event.x, y: event.y };
+
+  if (currentMode === 'click') {
+    document.getElementById('drop-zone').classList.add('glow');
+  }
+}
+
+function dragged(event, d) {
+  d.fx = event.x;
+  d.fy = event.y;
+  if (currentLayout === 'tree') {
+    // Update position directly (no simulation running)
+    d.x = event.x;
+    d.y = event.y;
+    d3.select(this).attr('transform', `translate(${d.x},${d.y})`);
+    linkEl
+      .attr('x1', l => l.source.x).attr('y1', l => l.source.y)
+      .attr('x2', l => l.target.x).attr('y2', l => l.target.y);
+  }
+}
+
+function dragEnded(event, d) {
+  if (currentLayout === 'graph') {
+    if (!event.active) simulation.alphaTarget(0);
+  }
+
+  const dropZone = document.getElementById('drop-zone');
+  dropZone.classList.remove('glow');
+
+  // Check if dropped on right panel
+  const rect = canvasArea.getBoundingClientRect();
+  const dropRect = dropZone.getBoundingClientRect();
+
+  const transform = d3.zoomTransform(svg.node());
+  const screenX = transform.applyX(d.fx) + rect.left;
+  const screenY = transform.applyY(d.fy) + rect.top;
+
+  const onDropZone =
+    screenX >= dropRect.left && screenX <= dropRect.right &&
+    screenY >= dropRect.top && screenY <= dropRect.bottom;
+
+  const rightPanel = document.querySelector('.right-panel');
+  const rightRect = rightPanel.getBoundingClientRect();
+  const onRightPanel =
+    event.sourceEvent.clientX >= rightRect.left &&
+    event.sourceEvent.clientX <= rightRect.right;
+
+  if (onDropZone || onRightPanel) {
+    addNodesToSet([d.id]);
+    const nodeGEl = svgG.select(`[data-id="${d.id}"]`);
+    nodeGEl.classed('fly-anim', true);
+    setTimeout(() => nodeGEl.classed('fly-anim', false), 600);
+  }
+
+  if (currentLayout === 'tree') {
+    // Snap back to tree position
+    d.fx = d._treeFx;
+    d.fy = d._treeFy;
+    d.x = d.fx;
+    d.y = d.fy;
+    d3.select(`[data-id="${d.id}"]`).attr('transform', `translate(${d.x},${d.y})`);
+    linkEl
+      .attr('x1', l => l.source.x).attr('y1', l => l.source.y)
+      .attr('x2', l => l.target.x).attr('y2', l => l.target.y);
+  } else {
+    d.fx = null;
+    d.fy = null;
+  }
+  draggingNode = null;
+}
+
+// ─────────────────────────────────────────────
+// TOOLTIP
+// ─────────────────────────────────────────────
+const tooltip = document.getElementById('tooltip');
+
+function nodeMouseOver(event, d) {
+  const rect = canvasArea.getBoundingClientRect();
+  tooltip.style.left = (event.clientX - rect.left + 14) + 'px';
+  tooltip.style.top = (event.clientY - rect.top - 10) + 'px';
+
+  document.getElementById('tt-name').textContent = d.name;
+  document.getElementById('tt-id').textContent = `Concept ID: ${d.conceptId}`;
+  document.getElementById('tt-domain').textContent = d.domain;
+  document.getElementById('tt-freq').textContent = d.freq.toLocaleString() + ' patients';
+  document.getElementById('tt-std').textContent = d.standard ? 'Standard (SNOMED)' : 'Non-standard';
+  tooltip.classList.add('visible');
+
+  // Dim other nodes
+  nodeEl.style('opacity', n => n.id === d.id ? 1 : 0.5);
+  linkEl.style('opacity', l => (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.15);
+}
+
+function nodeMouseOut() {
+  tooltip.classList.remove('visible');
+  nodeEl.style('opacity', 1);
+  linkEl.style('opacity', 0.6);
+}
+
+// ─────────────────────────────────────────────
+// SELECTION PANEL
+// ─────────────────────────────────────────────
+function updateSelectionPanel() {
+  const panel = document.getElementById('selection-panel');
+  const count = selectedNodes.size;
+  document.getElementById('sel-count').textContent = count;
+
+  if (count > 0) {
+    panel.classList.add('visible');
+  } else {
+    panel.classList.remove('visible');
+  }
+
+  document.getElementById('btn-add-selected').disabled = count === 0;
+  document.getElementById('btn-clear-sel').disabled = count === 0;
+}
+
+function updateNodeStyles(isSubtree = false) {
+  nodeEl.each(function(d) {
+    const el = d3.select(this);
+    el.classed('selected', selectedNodes.has(d.id) && !isSubtree);
+    el.classed('highlighted', isSubtree && selectedNodes.has(d.id));
+    el.classed('in-set', conceptSet.has(d.id));
+
+    // Remove old checkmark
+    el.select('.checkmark').remove();
+
+    if (conceptSet.has(d.id)) {
+      el.append('text')
+        .attr('class', 'checkmark')
+        .attr('dy', 4)
+        .attr('text-anchor', 'middle')
+        .text('✓');
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// MODE
+// ─────────────────────────────────────────────
+function setMode(mode, silent = false) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+
+  const btnMap = { click: 'btn-click', lasso: 'btn-lasso', subtree: 'btn-subtree' };
+  const btn = document.getElementById(btnMap[mode]);
+  if (btn) btn.classList.add('active');
+
+  const svg_el = document.getElementById('graph-svg');
+  svg_el.classList.remove('lasso-mode', 'drag-mode');
+  if (mode === 'lasso') svg_el.classList.add('lasso-mode');
+
+  const labels = { click: 'Click Mode', lasso: 'Lasso Mode', subtree: 'Subtree Mode' };
+  document.getElementById('mode-label').textContent = labels[mode];
+
+  const dotColors = { click: '#22c55e', lasso: '#3b82f6', subtree: '#a855f7' };
+  document.getElementById('mode-dot').style.background = dotColors[mode];
+
+  // Disable zoom scroll in lasso mode
+  if (mode === 'lasso') {
+    svg.on('.zoom', null);
+  } else {
+    svg.call(zoomBehavior);
+  }
+}
+
+// ─────────────────────────────────────────────
+// CONCEPT SET
+// ─────────────────────────────────────────────
+function addSelectedToSet() {
+  if (selectedNodes.size === 0) return;
+  addNodesToSet([...selectedNodes]);
+  clearSelection();
+}
+
+function addNodesToSet(ids) {
+  let added = false;
+  ids.forEach(id => {
+    if (!conceptSet.has(id)) {
+      const node = nodeMap[id];
+      if (node) {
+        conceptSet.set(id, { node, includeDescendants: false });
+        added = true;
+      }
+    }
+  });
+  if (added) {
+    renderConceptList();
+    updateNodeStyles();
+    updateSummary();
+  }
+}
+
+function removeFromSet(id) {
+  conceptSet.delete(id);
+  renderConceptList();
+  updateNodeStyles();
+  updateSummary();
+}
+
+function toggleDescendants(id) {
+  const entry = conceptSet.get(id);
+  if (entry) {
+    entry.includeDescendants = !entry.includeDescendants;
+    renderConceptList();
+    updateSummary();
+  }
+}
+
+function renderConceptList() {
+  const list = document.getElementById('concept-list');
+  list.innerHTML = '';
+
+  conceptSet.forEach((entry, id) => {
+    const { node, includeDescendants } = entry;
+    const color = DOMAIN_COLORS[node.domain] || '#94a3b8';
+    const descendants = getDescendants(id);
+    const descCount = descendants.length;
+
+    const item = document.createElement('div');
+    item.className = 'concept-item new';
+    item.innerHTML = `
+      <div class="domain-dot" style="background:${color}"></div>
+      <div class="concept-info">
+        <div class="concept-name" title="${node.name}">${node.name}</div>
+        <div class="concept-id">ID: ${node.conceptId} | ${node.domain}</div>
+        ${descCount > 0 ? `
+        <div class="concept-desc-toggle" onclick="toggleDescendants('${id}')">
+          <span>${includeDescendants ? '&#9660;' : '&#9654;'}</span>
+          <span>Include descendants</span>
+          <span class="desc-count">+${descCount}</span>
+        </div>` : ''}
+      </div>
+      <button class="remove-btn" onclick="removeFromSet('${id}')" title="Remove" aria-label="Remove ${node.name} from concept set">&#10005;</button>
+    `;
+    list.appendChild(item);
+  });
+
+  document.getElementById('set-count').textContent = `${conceptSet.size} concept${conceptSet.size !== 1 ? 's' : ''}`;
+}
+
+function updateSummary() {
+  let total = 0;
+  conceptSet.forEach((entry, id) => {
+    total += 1;
+    if (entry.includeDescendants) {
+      total += getDescendants(id).length;
+    }
+  });
+  const bar = document.getElementById('summary-bar');
+  bar.innerHTML = `<strong>${conceptSet.size}</strong> concepts selected, <strong>${total}</strong> total with descendants`;
+  updateExportState();
+}
+
+function clearConceptSet() {
+  conceptSet.clear();
+  renderConceptList();
+  updateNodeStyles();
+  updateSummary();
+}
+
+function clearSelection() {
+  selectedNodes.clear();
+  updateNodeStyles();
+  updateSelectionPanel();
+  document.getElementById('subtree-panel').classList.remove('visible');
+  subtreeRoot = null;
+  subtreeNodes = [];
+}
+
+// ─────────────────────────────────────────────
+// EXPORT
+// ─────────────────────────────────────────────
+function setExportStatus(message) {
+  const status = document.getElementById('export-status');
+  if (status) status.textContent = message;
+}
+
+function updateExportState() {
+  const btn = document.getElementById('export-btn');
+  if (!btn) return;
+
+  const disabled = conceptSet.size === 0;
+  btn.dataset.empty = disabled ? 'true' : 'false';
+  btn.title = disabled
+    ? 'Select at least one concept before exporting'
+    : 'Export selected concepts as CIRCE JSON';
+
+  if (!disabled) setExportStatus('');
+}
+
+function buildCIRCE() {
+  const conceptSetItems = [];
+  conceptSet.forEach((entry, id) => {
+    const { node, includeDescendants } = entry;
+    conceptSetItems.push({
+      concept: {
+        CONCEPT_ID: node.conceptId,
+        CONCEPT_NAME: node.name,
+        STANDARD_CONCEPT: node.standard ? 'S' : null,
+        STANDARD_CONCEPT_CAPTION: node.standard ? 'Standard' : 'Non-Standard',
+        INVALID_REASON: null,
+        INVALID_REASON_CAPTION: 'Valid',
+        CONCEPT_CODE: node.conceptId.toString(),
+        DOMAIN_ID: node.domain,
+        VOCABULARY_ID: node.domain === 'Condition' ? 'SNOMED' : (node.domain === 'Drug' ? 'RxNorm' : 'LOINC'),
+        CONCEPT_CLASS_ID: node.domain === 'Drug' && id.startsWith('DC') ? 'Pharmacologic Class' : node.domain
+      },
+      isExcluded: false,
+      includeDescendants,
+      includeMapped: false
+    });
+  });
+
+  return {
+    name: 'Clinician-Selected Concept Set',
+    expression: {
+      items: conceptSetItems
+    },
+    _metadata: {
+      source: 'Interactive Visual Selection Demo',
+      createdAt: new Date().toISOString(),
+      totalConcepts: conceptSetItems.length,
+      domainsIncluded: [...new Set(conceptSetItems.map(i => i.concept.DOMAIN_ID))]
+    }
+  };
+}
+
+function showExportModal() {
+  if (conceptSet.size === 0) {
+    updateExportState();
+    setExportStatus('Select at least one concept before exporting.');
+    document.getElementById('export-btn')?.focus();
+    return;
+  }
+
+  const circe = buildCIRCE();
+  document.getElementById('modal-json').textContent = JSON.stringify(circe, null, 2);
+  document.getElementById('copy-status').textContent = '';
+
+  const overlay = document.getElementById('modal-overlay');
+  lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.getElementById('copy-json-btn')?.focus();
+}
+
+function closeModal(event) {
+  if (event.target === event.currentTarget) {
+    closeModalDirect();
+  }
+}
+
+function closeModalDirect() {
+  const overlay = document.getElementById('modal-overlay');
+  if (!overlay.classList.contains('open')) return;
+
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+  document.getElementById('copy-status').textContent = '';
+
+  if (lastFocusedElement && document.contains(lastFocusedElement)) {
+    lastFocusedElement.focus();
+  }
+  lastFocusedElement = null;
+}
+
+function setCopyStatus(message, isError = false) {
+  const status = document.getElementById('copy-status');
+  status.textContent = message;
+  status.classList.toggle('error', isError);
+}
+
+function fallbackCopyText(text) {
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  textArea.setAttribute('readonly', '');
+  textArea.style.position = 'fixed';
+  textArea.style.top = '-1000px';
+  document.body.appendChild(textArea);
+  textArea.select();
+  const copied = document.execCommand('copy');
+  document.body.removeChild(textArea);
+  if (!copied) throw new Error('Fallback copy failed');
+}
+
+async function copyJSON(button) {
+  const text = document.getElementById('modal-json').textContent;
+  const btn = button || document.getElementById('copy-json-btn');
+  const orig = btn.dataset.originalText || btn.textContent;
+  btn.dataset.originalText = orig;
+
+  if (!text.trim()) {
+    setCopyStatus('No JSON to copy.', true);
+    return;
+  }
+
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      fallbackCopyText(text);
+    }
+
+    btn.textContent = 'Copied!';
+    setCopyStatus('Copied to clipboard.');
+    setTimeout(() => {
+      if (btn.isConnected) btn.textContent = orig;
+      setCopyStatus('');
+    }, 1500);
+  } catch (error) {
+    setCopyStatus('Copy failed. Select the JSON text and copy manually.', true);
+  }
+}
+
+// ─────────────────────────────────────────────
+// ZOOM
+// ─────────────────────────────────────────────
+function zoomBy(factor) {
+  svg.transition().duration(300).call(zoomBehavior.scaleBy, factor);
+}
+
+function resetZoom() {
+  svg.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity.translate(0, 0).scale(1));
+}
+
+function getInitialGraphTransform() {
+  if (W > 700) {
+    return d3.zoomIdentity.translate(W * 0.05, H * 0.05).scale(0.9);
+  }
+
+  const xs = NODES_DATA.map(n => n.x);
+  const ys = NODES_DATA.map(n => n.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const margin = 24;
+  const graphWidth = Math.max(maxX - minX, 1);
+  const graphHeight = Math.max(maxY - minY, 1);
+  const fitScale = Math.min(
+    0.9,
+    (W - margin * 2) / graphWidth,
+    (H - margin * 2) / graphHeight
+  );
+  const scale = Math.max(0.3, fitScale);
+  const translateX = (W - (minX + maxX) * scale) / 2;
+  const translateY = (H - (minY + maxY) * scale) / 2;
+  return d3.zoomIdentity.translate(translateX, translateY).scale(scale);
+}
+
+// ─────────────────────────────────────────────
+// DROP ZONE hover detection during drag
+// ─────────────────────────────────────────────
+svg.on('mousemove.dropzone', (event) => {
+  if (!draggingNode) return;
+  const dropZone = document.getElementById('drop-zone');
+  const rect = dropZone.getBoundingClientRect();
+  const over =
+    event.clientX >= rect.left && event.clientX <= rect.right &&
+    event.clientY >= rect.top && event.clientY <= rect.bottom;
+  dropZone.classList.toggle('glow', over);
+});
+
+// ─────────────────────────────────────────────
+// LAYOUT SWITCHING (Graph ↔ Tree)
+// ─────────────────────────────────────────────
+let currentLayout = 'graph';
+
+function setLayout(layout) {
+  if (layout === currentLayout) return;
+  currentLayout = layout;
+
+  document.getElementById('btn-layout-graph').classList.toggle('active', layout === 'graph');
+  document.getElementById('btn-layout-tree').classList.toggle('active', layout === 'tree');
+
+  if (layout === 'tree') {
+    applyTreeLayout();
+  } else {
+    applyGraphLayout();
+  }
+}
+
+function applyTreeLayout() {
+  simulation.stop();
+
+  const isaLinks = LINKS_DATA.filter(l => l.type === 'is_a');
+
+  // Group nodes by domain
+  const domainGroups = {};
+  nodes.forEach(n => {
+    if (!domainGroups[n.domain]) domainGroups[n.domain] = [];
+    domainGroups[n.domain].push(n.id);
+  });
+
+  function buildSubtree(nodeId) {
+    const children = isaLinks.filter(l => l.target === nodeId).map(l => l.source);
+    const result = { id: nodeId, children: children.map(buildSubtree) };
+    if (result.children.length === 0) delete result.children;
+    return result;
+  }
+
+  // Layout each domain independently, then place side by side
+  const posMap = {};
+  const domainOrder = ['Condition', 'Drug', 'Measurement'];
+  const allDomains = [...new Set([...domainOrder, ...Object.keys(domainGroups)])];
+
+  let xCursor = 0; // horizontal offset for each domain group
+  const domainGap = 120;
+  const nodeSpacingY = 55;
+  const depthSpacingX = 160;
+
+  allDomains.forEach(domain => {
+    const domainNodeIds = new Set(domainGroups[domain] || []);
+    if (domainNodeIds.size === 0) return;
+
+    const domainIsaLinks = isaLinks.filter(l => domainNodeIds.has(l.source) && domainNodeIds.has(l.target));
+    const childSet = new Set(domainIsaLinks.map(l => l.source));
+    const parentSet = new Set(domainIsaLinks.map(l => l.target));
+    const roots = [...parentSet].filter(id => !childSet.has(id) && domainNodeIds.has(id));
+
+    // Build domain root with children
+    const placed = new Set();
+    const domainRoot = { id: `__${domain}__`, children: [] };
+
+    roots.forEach(rId => {
+      const subtree = buildSubtree(rId);
+      domainRoot.children.push(subtree);
+      function mark(node) { placed.add(node.id); if (node.children) node.children.forEach(mark); }
+      mark(subtree);
+    });
+
+    // Disconnected nodes in this domain: place as siblings (horizontal row)
+    const disconnected = [...domainNodeIds].filter(id => !placed.has(id));
+    disconnected.forEach(id => {
+      domainRoot.children.push({ id });
+      placed.add(id);
+    });
+
+    if (domainRoot.children.length === 0) return;
+
+    // Layout this domain's tree
+    const hierarchy = d3.hierarchy(domainRoot);
+    const treeLayout = d3.tree()
+      .nodeSize([nodeSpacingY, depthSpacingX])
+      .separation((a, b) => a.parent === b.parent ? 1 : 1.3);
+    treeLayout(hierarchy);
+
+    // Collect positions (skip virtual root)
+    const domainPositions = [];
+    hierarchy.descendants().forEach(d => {
+      if (d.data.id.startsWith('__')) return;
+      domainPositions.push({ id: d.data.id, lx: d.y, ly: d.x }); // lx=depth(→), ly=breadth(↓)
+    });
+
+    // Normalize: shift so min-y=0, apply xCursor offset
+    const minLy = d3.min(domainPositions, p => p.ly) || 0;
+    const minLx = d3.min(domainPositions, p => p.lx) || 0;
+    const maxLy = d3.max(domainPositions, p => p.ly) || 0;
+
+    domainPositions.forEach(p => {
+      posMap[p.id] = {
+        x: p.lx - minLx + xCursor,
+        y: p.ly - minLy
+      };
+    });
+
+    // Advance cursor: max-x in this group + gap
+    const maxLx = d3.max(domainPositions, p => p.lx) || 0;
+    xCursor += (maxLx - minLx) + domainGap;
+  });
+
+  // Center everything in viewport
+  const allPos = Object.values(posMap);
+  if (allPos.length === 0) return;
+  const cx = (d3.min(allPos, p => p.x) + d3.max(allPos, p => p.x)) / 2;
+  const cy = (d3.min(allPos, p => p.y) + d3.max(allPos, p => p.y)) / 2;
+  const offX = W / 2 - cx;
+  const offY = H / 2 - cy;
+
+  // Assign fixed positions and immediately place
+  nodes.forEach(n => {
+    const pos = posMap[n.id];
+    if (pos) {
+      n.fx = pos.x + offX;
+      n.fy = pos.y + offY;
+      n.x = n.fx;
+      n.y = n.fy;
+    }
+  });
+
+  // Update positions directly (no simulation needed)
+  linkEl
+    .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+  nodeEl.attr('transform', d => `translate(${d.x},${d.y})`);
+
+  // Style: is_a prominent, cross-domain dashed & faint
+  linkEl
+    .attr('stroke-opacity', d => d.type === 'is_a' ? 0.8 : 0.25)
+    .attr('stroke-width', d => d.type === 'is_a' ? 2 : 0.8)
+    .attr('stroke-dasharray', d => d.type === 'is_a' ? null : '3 3');
+
+  // Fit view
+  requestAnimationFrame(() => {
+    svg.transition().duration(400).call(zoomBehavior.transform, getInitialGraphTransform());
+  });
+}
+
+function applyGraphLayout() {
+  nodes.forEach(n => { n.fx = null; n.fy = null; });
+
+  // Restore original link styles
+  linkEl
+    .attr('stroke-opacity', 0.6)
+    .attr('stroke-width', d => d.type === 'is_a' ? 1.5 : 1)
+    .attr('stroke-dasharray', d => d.type === 'is_a' ? null : (d.type === 'maps_to' ? '4 3' : '5 4'));
+
+  simulation.alpha(0.8).restart();
+
+  setTimeout(() => {
+    svg.transition().duration(500).call(zoomBehavior.transform, getInitialGraphTransform());
+  }, 1200);
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+// Warm-start: position nodes from data
+nodes.forEach(n => {
+  if (n.x) { n.fx = n.x; n.fy = n.y; }
+});
+simulation.on('end', () => {
+  nodes.forEach(n => { n.fx = null; n.fy = null; });
+});
+setTimeout(() => {
+  nodes.forEach(n => { n.fx = null; n.fy = null; });
+  simulation.alpha(0.3).restart();
+}, 800);
+
+// Initial center pan
+svg.call(zoomBehavior.transform, getInitialGraphTransform());
+updateExportState();
+</script>
+</body>
+</html>
