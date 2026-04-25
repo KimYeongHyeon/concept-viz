@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATLAS vs concept-viz — 시점이 결정적입니다</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-main:#0f172a; --bg-panel:#1e293b; --bg-subtle:#111827; --bg-read:#151e33;
+    --text-primary:#e8ecf2; --text-body:#cbd5e1; --text-secondary:#94a3b8;
+    --text-dim:#64748b; --border:#2d3a52; --border-strong:#475569;
+    --accent-purple:#a78bfa; --accent-gold:#fbbf24;
+    --accent-green:#34d399; --accent-blue:#60a5fa; --accent-red:#f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-main); color: var(--text-body);
+    font-family: 'Inter', 'Noto Serif KR', -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.75; word-break: keep-all; overflow-wrap: break-word;
+  }
+  a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(167,139,250,0.4); }
+  a:hover { border-bottom-color: var(--accent-purple); }
+
+  nav.top {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(15,23,42,0.92); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; gap: 18px; font-size: 13px;
+  }
+  nav.top .brand { font-weight: 700; color: var(--text-primary); }
+  nav.top .brand .dot { color: var(--accent-purple); }
+  nav.top .breadcrumb { color: var(--text-dim); }
+  nav.top .spacer { flex: 1; }
+  nav.top .back { color: var(--text-secondary); border-bottom: none; }
+  nav.top .back:hover { color: var(--text-primary); }
+
+  .progress-bar {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent-purple), var(--accent-gold));
+    z-index: 100; width: 0%; transition: width 0.1s ease;
+  }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 56px 28px 120px; }
+
+  header.hero { margin-bottom: 56px; max-width: 760px; }
+  header.hero .kicker {
+    display: inline-block; padding: 4px 12px; border-radius: 20px;
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent-gold);
+    margin-bottom: 16px;
+  }
+  header.hero h1 {
+    font-size: clamp(30px, 4vw, 42px); font-weight: 700;
+    line-height: 1.18; letter-spacing: -0.025em;
+    color: var(--text-primary); margin-bottom: 18px;
+  }
+  header.hero h1 em {
+    color: var(--accent-gold); font-style: normal;
+  }
+  header.hero .lead { font-size: 17.5px; color: var(--text-secondary); line-height: 1.7; }
+
+  /* Section headings */
+  h2 {
+    font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
+    color: var(--text-primary); margin: 64px 0 14px; line-height: 1.25;
+  }
+  h2 .num {
+    display: block; font-size: 13px; font-weight: 600;
+    letter-spacing: 0.1em; color: var(--accent-purple); margin-bottom: 6px;
+  }
+  h3 {
+    font-size: 19px; font-weight: 600; color: var(--text-primary);
+    margin: 32px 0 10px; letter-spacing: -0.015em;
+  }
+
+  p { margin: 14px 0; color: var(--text-body); }
+  strong { color: var(--text-primary); font-weight: 600; }
+  em { color: var(--accent-gold); font-style: normal; }
+
+  /* SVG Timeline wrapper */
+  .timeline-wrap {
+    margin: 32px 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-subtle);
+    padding: 8px;
+    overflow-x: auto;
+  }
+  .timeline-wrap svg { display: block; min-width: 720px; width: 100%; height: auto; }
+  .timeline-caption {
+    padding: 12px 16px 8px; font-size: 12px; color: var(--text-dim);
+    text-align: center;
+  }
+
+  /* Cycle time card */
+  .cycle-card {
+    margin: 24px 0;
+    padding: 28px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), rgba(248, 113, 113, 0.05));
+    border: 1px solid rgba(251, 191, 36, 0.3);
+  }
+  .cycle-card h3 { margin-top: 0; }
+  .cycle-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .cycle-side {
+    padding: 18px 20px;
+    border-radius: 10px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+  }
+  .cycle-side.atlas { border-left: 3px solid var(--accent-red); }
+  .cycle-side.viz { border-left: 3px solid var(--accent-green); }
+  .cycle-side .who {
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    font-weight: 700; margin-bottom: 8px;
+  }
+  .cycle-side.atlas .who { color: var(--accent-red); }
+  .cycle-side.viz .who { color: var(--accent-green); }
+  .cycle-side .num {
+    font-size: 32px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-primary); line-height: 1;
+    margin-bottom: 4px;
+  }
+  .cycle-side.atlas .num { color: var(--accent-red); }
+  .cycle-side.viz .num { color: var(--accent-green); }
+  .cycle-side .desc { font-size: 13px; color: var(--text-secondary); }
+
+  .delta-box {
+    margin-top: 18px;
+    padding: 14px 18px;
+    background: rgba(251, 191, 36, 0.08);
+    border-left: 3px solid var(--accent-gold);
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .delta-box strong { color: var(--accent-gold); }
+
+  /* Comparison table */
+  .compare-table {
+    margin: 24px 0; width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    font-size: 14px;
+  }
+  .compare-table th {
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    font-weight: 600; font-size: 13px;
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 2px solid var(--border-strong);
+  }
+  .compare-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    color: var(--text-body);
+    vertical-align: top;
+    line-height: 1.55;
+  }
+  .compare-table td:last-child { border-right: none; }
+  .compare-table tr:last-child td { border-bottom: none; }
+  .compare-table .area { font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+  .compare-table .overlap { text-align: center; font-weight: 600; white-space: nowrap; }
+  .compare-table .overlap.none { color: var(--accent-red); }
+  .compare-table .overlap.partial { color: var(--accent-gold); }
+  .compare-table .overlap.same { color: var(--accent-green); }
+  .compare-table small { color: var(--text-dim); display: block; margin-top: 2px; }
+
+  .legend { margin-top: 10px; font-size: 12px; color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 14px; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+
+  /* Position cards */
+  .position {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .pos-card {
+    padding: 22px 24px;
+    border-radius: 12px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+  }
+  .pos-card.strong { border-color: rgba(52, 211, 153, 0.3); background: linear-gradient(135deg, var(--bg-panel), rgba(52, 211, 153, 0.04)); }
+  .pos-card.weak { border-color: rgba(251, 191, 36, 0.25); background: linear-gradient(135deg, var(--bg-panel), rgba(251, 191, 36, 0.03)); }
+  .pos-card .head {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 12px;
+    font-size: 14px; font-weight: 600;
+  }
+  .pos-card.strong .head { color: var(--accent-green); }
+  .pos-card.weak .head { color: var(--accent-gold); }
+  .pos-card ul { margin: 0 0 0 22px; padding: 0; }
+  .pos-card li { margin: 8px 0; font-size: 14px; color: var(--text-body); }
+  .pos-card li strong { color: var(--text-primary); font-weight: 600; }
+
+  /* Quote / pull quote */
+  .pull {
+    margin: 28px 0;
+    padding: 22px 26px;
+    border-left: 4px solid var(--accent-purple);
+    background: var(--bg-read);
+    border-radius: 8px;
+    font-size: 16px; line-height: 1.7;
+    color: var(--text-primary);
+  }
+  .pull em { color: var(--accent-gold); }
+
+  hr.divider { border: none; height: 1px; background: var(--border); margin: 56px 0; }
+
+  .end-cta {
+    margin-top: 56px; padding: 32px;
+    border-radius: 14px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .end-cta h3 { margin-top: 0; font-size: 18px; color: var(--text-primary); }
+  .end-cta p { color: var(--text-secondary); font-size: 14px; margin-bottom: 18px; }
+  .end-cta .cta-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .end-cta .btn {
+    padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; font-weight: 500; border-bottom: none;
+  }
+  .end-cta .btn.primary { background: var(--accent-purple); color: #0f172a; }
+  .end-cta .btn.secondary { background: var(--bg-subtle); color: var(--text-primary); border: 1px solid var(--border-strong); }
+
+  @media (max-width: 720px) {
+    main { padding: 32px 20px 80px; }
+    .cycle-grid { grid-template-columns: 1fr; }
+    .position { grid-template-columns: 1fr; }
+    .compare-table { font-size: 12px; }
+    .compare-table td, .compare-table th { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress-bar"></div>
+
+<nav class="top">
+  <span class="brand"><span class="dot">◆</span> concept-viz</span>
+  <span class="breadcrumb">/ ATLAS 비교</span>
+  <span class="spacer"></span>
+  <a href="index.html" class="back">← 홈</a>
+</nav>
+
+<main>
+
+<header class="hero">
+  <div class="kicker">● ATLAS Positioning</div>
+  <h1>ATLAS와 어디서 겹치고,<br>무엇이 <em>시점에서</em> 다른가</h1>
+  <p class="lead">
+    OHDSI ATLAS는 OHDSI 생태계의 표준 도구이며, 본 프로젝트가 다루는 일부 시각화 영역(계층 트리·attrition·환자 수)을
+    이미 제공합니다. 이 문서는 겹침을 정직하게 정리하면서, 우리의 핵심 차별점이
+    <strong>"피드백이 일어나는 시점"</strong>임을 보여줍니다.
+  </p>
+</header>
+
+<!-- Section 1: TEMPORAL CORE -->
+<section>
+  <h2><span class="num">섹션 1</span>핵심은 시간 — 매핑 결정 *후* vs *동안*</h2>
+
+  <p>
+    ATLAS의 모든 시각화 피드백 (cohort 크기, attrition, 특성화)은 <strong>"매핑이 끝난 후 cohort generation을 실행해야"</strong> 나타납니다.
+    이 generation은 보통 수 분에서 수 시간이 걸립니다 (CDM 크기와 쿼리 복잡도에 따라).
+  </p>
+  <p>
+    concept-viz는 같은 정보를 <strong>"매핑 결정이 일어나는 그 순간"</strong> 보여줍니다.
+    의료진이 concept를 추가·교체하면 환자 수가 즉시 갱신됩니다 (수십~수백 ms).
+    이 차이는 단순한 속도 향상이 아니라 <em>"의사결정의 종류"</em>를 바꿉니다.
+  </p>
+
+  <!-- Timeline SVG -->
+  <div class="timeline-wrap">
+    <svg viewBox="0 0 1040 420" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"/>
+        </marker>
+        <linearGradient id="atlasBg" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1e293b"/>
+          <stop offset="100%" stop-color="rgba(248,113,113,0.06)"/>
+        </linearGradient>
+        <linearGradient id="vizBg" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1e293b"/>
+          <stop offset="100%" stop-color="rgba(52,211,153,0.06)"/>
+        </linearGradient>
+        <style>
+          .lbl { font: 600 12px 'Inter', system-ui, sans-serif; fill: #e8ecf2; }
+          .sub { font: 400 11px 'Inter', system-ui, sans-serif; fill: #94a3b8; }
+          .tag { font: 500 10px 'Inter', system-ui, sans-serif; fill: #cbd5e1; letter-spacing: 0.06em; }
+          .time { font: 700 12px 'JetBrains Mono', monospace; fill: #fbbf24; }
+          .feedback { font: 700 10px 'Inter', system-ui, sans-serif; fill: #f87171; letter-spacing: 0.08em; }
+          .feedback-good { font: 700 10px 'Inter', system-ui, sans-serif; fill: #34d399; letter-spacing: 0.08em; }
+        </style>
+      </defs>
+
+      <!-- Title -->
+      <text x="520" y="28" text-anchor="middle" class="lbl" font-size="14">매핑 한 번 검토하는 데 걸리는 워크플로우</text>
+
+      <!-- ============ ATLAS row ============ -->
+      <g transform="translate(0, 60)">
+        <rect x="0" y="0" width="1040" height="140" rx="10" fill="url(#atlasBg)" stroke="rgba(248,113,113,0.3)" stroke-width="1"/>
+        <rect x="14" y="14" width="84" height="22" rx="11" fill="#f87171"/>
+        <text x="56" y="29" text-anchor="middle" class="tag" fill="#0f172a" font-weight="700">ATLAS</text>
+        <text x="110" y="29" class="sub">매핑 *후* 통계 — 한 사이클이 길다</text>
+
+        <!-- Boxes (sequence) -->
+        <g transform="translate(20, 56)">
+          <rect width="140" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <text x="70" y="18" text-anchor="middle" class="lbl" font-size="11">Athena 검색</text>
+          <text x="70" y="32" text-anchor="middle" class="sub">359개 후보 중 선택</text>
+        </g>
+        <line x1="160" y1="76" x2="180" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+
+        <g transform="translate(186, 56)">
+          <rect width="140" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <text x="70" y="18" text-anchor="middle" class="lbl" font-size="11">Concept Set 구성</text>
+          <text x="70" y="32" text-anchor="middle" class="sub">테이블 add/remove</text>
+        </g>
+        <line x1="326" y1="76" x2="346" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+
+        <g transform="translate(352, 56)">
+          <rect width="150" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <text x="75" y="18" text-anchor="middle" class="lbl" font-size="11">Cohort Definition</text>
+          <text x="75" y="32" text-anchor="middle" class="sub">criteria 작성</text>
+        </g>
+        <line x1="502" y1="76" x2="522" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+
+        <g transform="translate(528, 56)">
+          <rect width="160" height="40" rx="6" fill="#312e81" stroke="#a78bfa" stroke-dasharray="3 2"/>
+          <text x="80" y="18" text-anchor="middle" class="lbl" font-size="11" fill="#c4b5fd">Generate (대기)</text>
+          <text x="80" y="32" text-anchor="middle" class="time" font-size="10">⏱ 2 ~ 30 min</text>
+        </g>
+        <line x1="688" y1="76" x2="708" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+
+        <!-- Feedback bolt -->
+        <g transform="translate(714, 56)">
+          <rect width="140" height="40" rx="6" fill="#7f1d1d" stroke="#f87171"/>
+          <text x="70" y="18" text-anchor="middle" class="feedback">⚡ FIRST FEEDBACK</text>
+          <text x="70" y="32" text-anchor="middle" class="sub" fill="#fca5a5">cohort 크기 보임</text>
+        </g>
+        <line x1="854" y1="76" x2="874" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+
+        <g transform="translate(880, 56)">
+          <rect width="150" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <text x="75" y="18" text-anchor="middle" class="lbl" font-size="11">조정 → 재생성</text>
+          <text x="75" y="32" text-anchor="middle" class="sub">반복 (각 +수 분)</text>
+        </g>
+
+        <!-- Total time -->
+        <text x="520" y="125" text-anchor="middle" class="time" font-size="13">▶ 한 의문 검증 사이클: 5 ~ 30 분</text>
+      </g>
+
+      <!-- ============ concept-viz row ============ -->
+      <g transform="translate(0, 230)">
+        <rect x="0" y="0" width="1040" height="140" rx="10" fill="url(#vizBg)" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
+        <rect x="14" y="14" width="120" height="22" rx="11" fill="#34d399"/>
+        <text x="74" y="29" text-anchor="middle" class="tag" fill="#0f172a" font-weight="700">concept-viz</text>
+        <text x="146" y="29" class="sub">매핑 *동안* 실시간 — 사이클이 짧다</text>
+
+        <!-- Boxes (compact, with feedback bolts between every step) -->
+        <g transform="translate(20, 56)">
+          <rect width="140" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <text x="70" y="18" text-anchor="middle" class="lbl" font-size="11">AI 후보 본다</text>
+          <text x="70" y="32" text-anchor="middle" class="sub">Top-N + confidence</text>
+        </g>
+
+        <!-- bolt 1 -->
+        <g transform="translate(168, 56)">
+          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
+          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#34d399">⚡</text>
+        </g>
+
+        <g transform="translate(210, 56)">
+          <rect width="160" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <text x="80" y="18" text-anchor="middle" class="lbl" font-size="11">Tree에서 hover/click</text>
+          <text x="80" y="32" text-anchor="middle" class="sub">계층·형제 탐색</text>
+        </g>
+
+        <!-- bolt 2 -->
+        <g transform="translate(378, 56)">
+          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
+          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#34d399">⚡</text>
+        </g>
+
+        <g transform="translate(420, 56)">
+          <rect width="160" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <text x="80" y="18" text-anchor="middle" class="lbl" font-size="11">concept 추가/교체</text>
+          <text x="80" y="32" text-anchor="middle" class="sub">drag/lasso/click</text>
+        </g>
+
+        <!-- bolt 3 -->
+        <g transform="translate(588, 56)">
+          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
+          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#34d399">⚡</text>
+        </g>
+
+        <g transform="translate(630, 56)">
+          <rect width="170" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <text x="85" y="18" text-anchor="middle" class="lbl" font-size="11">funnel 즉시 갱신</text>
+          <text x="85" y="32" text-anchor="middle" class="sub">n = … 실시간</text>
+        </g>
+
+        <!-- bolt 4 -->
+        <g transform="translate(808, 56)">
+          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
+          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#34d399">⚡</text>
+        </g>
+
+        <g transform="translate(850, 56)">
+          <rect width="178" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
+          <text x="89" y="18" text-anchor="middle" class="feedback-good">⚡ EVERY ACTION</text>
+          <text x="89" y="32" text-anchor="middle" class="sub" fill="#86efac">사이클당 ~수백 ms</text>
+        </g>
+
+        <!-- Total time -->
+        <text x="520" y="125" text-anchor="middle" class="time" font-size="13" fill="#34d399">▶ 한 의문 검증 사이클: ~ 1 초 미만</text>
+      </g>
+
+      <!-- Center divider arrow showing scale -->
+      <g transform="translate(520, 200)">
+        <text text-anchor="middle" class="time" font-size="11" fill="#cbd5e1">vs</text>
+      </g>
+    </svg>
+    <div class="timeline-caption">
+      ATLAS는 cohort generation 후에야 첫 피드백 — 한 사이클 5–30분 / concept-viz는 모든 인터랙션마다 피드백 — 한 사이클 1초 미만
+    </div>
+  </div>
+
+  <!-- Cycle time card -->
+  <div class="cycle-card">
+    <h3>한 매핑 결정에 평균 50번의 "이걸 바꾸면?"가 발생한다고 가정</h3>
+    <p style="color: var(--text-body); font-size: 14px;">의료진은 한 criteria의 매핑을 결정할 때 보통 수십 번의 가설 ("이 concept를 빼면 환자 수가 어떻게 될까?", "이 형제를 추가하면?")을 검토합니다.</p>
+    <div class="cycle-grid">
+      <div class="cycle-side atlas">
+        <div class="who">⚠ ATLAS 사이클</div>
+        <div class="num">~12 시간</div>
+        <div class="desc">50회 × 평균 14분 (concept set 수정 + cohort 재생성 대기) — 현실적으로 의료진은 이 비용 때문에 <strong style="color: var(--text-primary)">대부분 첫 매핑을 그대로 받아들임</strong></div>
+      </div>
+      <div class="cycle-side viz">
+        <div class="who">✓ concept-viz 사이클</div>
+        <div class="num">~1 분</div>
+        <div class="desc">50회 × ~1초 (UI 인터랙션 + 즉시 갱신) — 같은 시간에 <strong style="color: var(--text-primary)">700배 더 많은 가설 검증 가능</strong></div>
+      </div>
+    </div>
+    <div class="delta-box">
+      <strong>핵심:</strong> 단순 속도 향상이 아니라 <em>"의사결정의 종류"</em>가 바뀝니다. ATLAS는 "최선이 무엇인지 한 번 정해 받아들이는" 결정을, concept-viz는 "여러 시나리오를 비교하며 더 나은 것에 수렴하는" 결정을 가능하게 합니다.
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Section 2: Full Feature Comparison -->
+<section>
+  <h2><span class="num">섹션 2</span>전체 기능 비교 — 영역별 겹침</h2>
+  <p>
+    아래 표는 ATLAS와 concept-viz의 14개 기능 영역을 정직하게 비교합니다.
+    겹침 정도 (🔴 없음 / 🟡 부분 / 🟢 거의 같음) 와 함께 핵심 차이를 명시했습니다.
+  </p>
+
+  <div style="overflow-x: auto;">
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th style="width: 18%;">기능 영역</th>
+        <th style="width: 26%;">ATLAS</th>
+        <th style="width: 26%;">concept-viz (제안)</th>
+        <th style="width: 8%;">겹침</th>
+        <th style="width: 22%;">핵심 차이</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="area">Concept 계층 탐색</td>
+        <td>펼침/접기 트리 (Concept Hierarchy 패널)</td>
+        <td>DOI Tree + Semantic Zoom (관심 가지만 자동 펼침)</td>
+        <td class="overlap partial">🟡</td>
+        <td>ATLAS는 사용자가 일일이 펼침 → 화면 폭발. 우리는 focus 자동</td>
+      </tr>
+      <tr>
+        <td class="area">Concept Set 구성</td>
+        <td>테이블 기반 add/remove + Include Descendants 체크박스</td>
+        <td>드래그·래소로 시각적 영역 선택</td>
+        <td class="overlap partial">🟡</td>
+        <td>동일 목표, UX 완전 다름. 후보 10~50개 비교 시 ATLAS는 반복 클릭</td>
+      </tr>
+      <tr>
+        <td class="area">Included Concepts 펼침</td>
+        <td>테이블 리스트 (확장 후 N개 모두 표시)</td>
+        <td>계층 그래프에서 자녀·형제 시각화</td>
+        <td class="overlap same">🟢</td>
+        <td>ATLAS는 list, 우리는 spatial. 시각적 gap 감지에 차이</td>
+      </tr>
+      <tr>
+        <td class="area">Cohort 크기 / Attrition</td>
+        <td>Inclusion Rule Waterfall (cohort 생성 *후* 계산)<small>분~시간 소요</small></td>
+        <td>Threshold slider + 실시간 waterfall</td>
+        <td class="overlap partial">🟡</td>
+        <td><strong>시점이 결정적</strong> — 섹션 1 참조</td>
+      </tr>
+      <tr>
+        <td class="area">환자 수 / 분포 오버레이</td>
+        <td>Achilles overlay (concept별 record count)</td>
+        <td>Tree 노드 옆 inline 환자 수</td>
+        <td class="overlap same">🟢</td>
+        <td>데이터 소스 같음. 표시 위치만 다름</td>
+      </tr>
+      <tr>
+        <td class="area">누락 concept 감지</td>
+        <td><strong style="color: var(--accent-red);">없음</strong></td>
+        <td>Anchor 기반 sibling 자동 펼침 + 점선 셀로 gap 표시</td>
+        <td class="overlap none">🔴</td>
+        <td>concept-viz 고유 — "AI가 놓친 것 발견"</td>
+      </tr>
+      <tr>
+        <td class="area">AI 매핑 추천 검토</td>
+        <td><strong style="color: var(--accent-red);">없음</strong> (수동 검색만)</td>
+        <td>Top-N 후보 카드 + confidence + Approve/Reject</td>
+        <td class="overlap none">🔴</td>
+        <td><strong>본 프로젝트 핵심 정당성</strong> — ATLAS는 AI 매핑 등장 전 (~2014) 설계</td>
+      </tr>
+      <tr>
+        <td class="area">Criteria 원문 ↔ 매핑 결과 연결</td>
+        <td><strong style="color: var(--accent-red);">없음</strong> (cohort 정의는 criteria text와 분리)</td>
+        <td>좌측 Criteria Panel + Span 하이라이트 + 도메인 태그</td>
+        <td class="overlap none">🔴</td>
+        <td>concept-viz 고유 — TTE 워크플로우 특화</td>
+      </tr>
+      <tr>
+        <td class="area">Vocabulary 전체 분포</td>
+        <td>Data Source Overview (Achilles, 도메인별 카운트 차트)</td>
+        <td>Treemap / Sunburst (인터랙티브 drill-down)</td>
+        <td class="overlap partial">🟡</td>
+        <td>ATLAS는 정적 차트, 우리는 클릭 탐색</td>
+      </tr>
+      <tr>
+        <td class="area">Cohort Characterization</td>
+        <td><strong style="color: var(--accent-green);">풍부</strong> (demographics · comorbidities · drug patterns)</td>
+        <td>범위 외 (매핑 단계에 집중)</td>
+        <td class="overlap none">🔴</td>
+        <td>ATLAS 고유 — 우리는 매핑 후 ATLAS로 export</td>
+      </tr>
+      <tr>
+        <td class="area">Treatment Pathways (Sankey)</td>
+        <td><strong style="color: var(--accent-green);">있음</strong></td>
+        <td>없음</td>
+        <td class="overlap none">🔴</td>
+        <td>ATLAS 고유</td>
+      </tr>
+      <tr>
+        <td class="area">Cohort vs Cohort 비교</td>
+        <td><strong style="color: var(--accent-green);">있음</strong></td>
+        <td>범위 외</td>
+        <td class="overlap none">🔴</td>
+        <td>ATLAS 고유</td>
+      </tr>
+      <tr>
+        <td class="area">실제 cohort 생성 (production)</td>
+        <td><strong style="color: var(--accent-green);">WebAPI 통합, IRB 승인 환경</strong></td>
+        <td>매핑 결과를 ATLAS로 export</td>
+        <td class="overlap none">🔴</td>
+        <td>ATLAS는 운영, 우리는 의사결정 보조</td>
+      </tr>
+      <tr>
+        <td class="area">매핑 이력 / 판단 근거 기록</td>
+        <td>부분 (Concept Set notes, comments)</td>
+        <td>자동 기록 (selected/rejected + AI confidence + timestamp)</td>
+        <td class="overlap partial">🟡</td>
+        <td>ATLAS는 free-text 메모, 우리는 구조화 로그</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background: var(--accent-red);"></span>🔴 겹침 없음 (각각 고유)</span>
+    <span><span class="dot" style="background: var(--accent-gold);"></span>🟡 부분 겹침 (목적은 같으나 방식·시점 다름)</span>
+    <span><span class="dot" style="background: var(--accent-green);"></span>🟢 거의 같음 (UX만 다름)</span>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Section 3: Honest positioning -->
+<section>
+  <h2><span class="num">섹션 3</span>정직한 포지셔닝 — 강한 카드와 약한 카드</h2>
+
+  <p>
+    "ATLAS도 한다"는 reviewer 코멘트에 대비해 미리 입장을 명확히 합니다.
+    아래 강점은 단독 publication 가능 수준, 약점은 정량적 증거(사용자 연구 등)로 보강 필요한 영역입니다.
+  </p>
+
+  <div class="position">
+    <div class="pos-card strong">
+      <div class="head">✓ 강한 카드 (확실한 차별점)</div>
+      <ul>
+        <li><strong>AI 매핑 추천 검토 인터페이스</strong> — ATLAS 0% 겹침. AI 매핑이 등장한 후 의료진의 검증 워크플로우가 비어 있음을 메움</li>
+        <li><strong>실시간 feasibility 피드백</strong> — ATLAS도 attrition을 보여주지만 cohort generation 후. 우리는 selection 즉시 → 의사결정 사이클 700배 단축 (섹션 1 참조)</li>
+        <li><strong>Anchor 기반 gap 감지</strong> — ATLAS 0%. AI가 놓친 sibling concept를 시각적으로 자동 노출</li>
+        <li><strong>Criteria 원문 컨텍스트 유지</strong> — ATLAS는 cohort definition과 protocol 원문이 분리. 우리는 같은 화면에서 매핑 판단의 근거 유지</li>
+      </ul>
+    </div>
+
+    <div class="pos-card weak">
+      <div class="head">⚠ 약한 카드 (인정 + 보강 필요)</div>
+      <ul>
+        <li><strong>Concept hierarchy 시각화</strong> — ATLAS도 트리 제공. DOI Tree + Semantic Zoom의 우월성은 사용자 연구로 증명 필요</li>
+        <li><strong>Concept set 구성 UX</strong> — 동일 목표. 드래그/래소 효율성을 정량적으로 (선택 시간, 오류율) 비교해야 설득력</li>
+        <li><strong>Vocabulary overview</strong> — ATLAS Achilles도 도메인 분포 차트 제공. Treemap의 인터랙티브성이 차이지만, 사용 빈도 자체가 낮을 수 있음</li>
+        <li><strong>Production 통합</strong> — ATLAS만 WebAPI 직결. 우리는 매핑 결과를 export해야 함. "별도 도구 → ATLAS로 옮김" 마찰 인정</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="pull">
+    <strong>한 줄 포지셔닝 (논문·grant 응답용)</strong>:<br>
+    concept-viz는 ATLAS를 대체하지 않는다. ATLAS의 강점인 cohort characterization, pathway, production cohort generation은 그대로 활용하면서, ATLAS에 없는 <em>"AI 추천 매핑을 의료진이 검토하는 단계"</em>를 메운다. 매핑이 결정된 *후* 통계를 보는 ATLAS와, 매핑이 결정되는 *동안* 실시간 피드백을 주는 concept-viz는 <em>시점이 다르다</em>.
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Section 4: Implications -->
+<section>
+  <h2><span class="num">섹션 4</span>시점이 다르다는 것이 의미하는 것</h2>
+
+  <h3>의료진의 인지 부담 변화</h3>
+  <p>
+    ATLAS 워크플로우에서 의료진은 "매핑 → 기다림 → 결과 → 무엇을 바꿀지 기억해서 → 다시 매핑" 사이클을 돕니다.
+    각 사이클 사이에 <strong>인지 컨텍스트 손실</strong>(왜 이 concept를 추가했는지, 어떤 가설을 검증 중이었는지)이 발생합니다.
+    concept-viz는 가설과 검증이 같은 인지 세션 안에서 일어납니다.
+  </p>
+
+  <h3>탐색 가능 공간의 차이</h3>
+  <p>
+    ATLAS에서 50회의 "if-then" 검증은 비현실적이라 의료진은 보통 <strong>처음 떠올린 5~10개 변형만 시도</strong>합니다.
+    concept-viz는 같은 시간에 100~500개 시나리오 탐색이 가능. 이는 <em>최선의 매핑에 도달할 확률</em>을 직접적으로 높입니다.
+  </p>
+
+  <h3>"AI 의존" 패턴 변화</h3>
+  <p>
+    검증 비용이 높으면 (ATLAS) 의료진은 AI 추천을 <strong>그대로 받아들이는 압박</strong>을 받습니다.
+    검증 비용이 거의 0에 가까우면 (concept-viz) 의료진은 <strong>적극적으로 도전·수정</strong>합니다.
+    같은 AI 모델을 쓰더라도 검증 도구가 final mapping 품질을 좌우합니다.
+  </p>
+
+  <h3>재현성·이력 관리</h3>
+  <p>
+    ATLAS는 free-text 메모로 매핑 근거를 기록하지만 의료진이 일관되게 작성하기 어렵습니다.
+    concept-viz는 인터랙션 자체가 로그됩니다 (어떤 후보를 보고, 어떤 것을 거부했고, 왜 변경했는지). 후속 연구자가 동일 매핑을 재현하기 쉬워집니다.
+  </p>
+</section>
+
+<div class="end-cta">
+  <h3>이 비교를 직접 확인해보세요</h3>
+  <p>"실시간 피드백"이 얼마나 다른 경험인지는 직접 데모를 클릭해보는 것이 가장 빠릅니다.</p>
+  <div class="cta-buttons">
+    <a href="demos/demo-integrated.html" class="btn primary">통합 데모 (실시간 피드백 체험)</a>
+    <a href="landscape.html" class="btn secondary">현재 워크플로우 (Athena 화면)</a>
+    <a href="primer.html" class="btn secondary">전체 안내서</a>
+  </div>
+</div>
+
+</main>
+
+<script>
+  const bar = document.getElementById('progress-bar');
+  window.addEventListener('scroll', () => {
+    const h = document.documentElement;
+    const pct = h.scrollHeight > h.clientHeight
+      ? (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100 : 0;
+    bar.style.width = pct + '%';
+  }, { passive: true });
+</script>
+
+</body>
+</html>
