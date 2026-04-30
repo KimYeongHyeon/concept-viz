@@ -9,25 +9,25 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-main:#0f172a; --bg-panel:#1e293b; --bg-subtle:#111827; --bg-read:#151e33;
-    --text-primary:#e8ecf2; --text-body:#cbd5e1; --text-secondary:#94a3b8;
-    --text-dim:#64748b; --border:#2d3a52; --border-strong:#475569;
-    --accent-purple:#a78bfa; --accent-gold:#fbbf24;
-    --accent-green:#34d399; --accent-blue:#60a5fa; --accent-red:#f87171;
+    --bg-main:#f7f8fc; --bg-panel:#ffffff; --bg-subtle:#f1f5f9; --bg-read:#f8fafc;
+    --text-primary:#1a1d2e; --text-body:#5a6178; --text-secondary:#8c93a8;
+    --text-dim:#8c93a8; --border:#e2e6f0; --border-strong:#94a3b8;
+    --accent-purple:#1d4ed8; --accent-gold:#d97706;
+    --accent-green:#22c55e; --accent-blue:#3b82f6; --accent-red:#ef4444;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   body {
     background: var(--bg-main); color: var(--text-body);
-    font-family: 'Inter', 'Noto Serif KR', -apple-system, sans-serif;
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
     font-size: 16px; line-height: 1.75; word-break: keep-all; overflow-wrap: break-word;
   }
-  a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(167,139,250,0.4); }
+  a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(59,130,246,0.35); }
   a:hover { border-bottom-color: var(--accent-purple); }
 
   nav.top {
     position: sticky; top: 0; z-index: 50;
-    background: rgba(15,23,42,0.92); backdrop-filter: blur(10px);
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(10px); box-shadow: 0 1px 3px rgba(26,29,46,0.04);
     border-bottom: 1px solid var(--border);
     padding: 12px 24px; display: flex; align-items: center; gap: 18px; font-size: 13px;
   }
@@ -238,7 +238,7 @@
     padding: 10px 18px; border-radius: 8px;
     font-size: 13px; font-weight: 500; border-bottom: none;
   }
-  .end-cta .btn.primary { background: var(--accent-purple); color: #0f172a; }
+  .end-cta .btn.primary { background: var(--accent-purple); color: #f7f8fc; }
   .end-cta .btn.secondary { background: var(--bg-subtle); color: var(--text-primary); border: 1px solid var(--border-strong); }
 
   @media (max-width: 720px) {
@@ -292,23 +292,23 @@
     <svg viewBox="0 0 1040 420" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-          <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"/>
+          <path d="M0,0 L10,5 L0,10 Z" fill="#8c93a8"/>
         </marker>
         <linearGradient id="atlasBg" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#1e293b"/>
+          <stop offset="0%" stop-color="#ffffff"/>
           <stop offset="100%" stop-color="rgba(248,113,113,0.06)"/>
         </linearGradient>
         <linearGradient id="vizBg" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#1e293b"/>
+          <stop offset="0%" stop-color="#ffffff"/>
           <stop offset="100%" stop-color="rgba(52,211,153,0.06)"/>
         </linearGradient>
         <style>
-          .lbl { font: 600 12px 'Inter', system-ui, sans-serif; fill: #e8ecf2; }
-          .sub { font: 400 11px 'Inter', system-ui, sans-serif; fill: #94a3b8; }
-          .tag { font: 500 10px 'Inter', system-ui, sans-serif; fill: #cbd5e1; letter-spacing: 0.06em; }
-          .time { font: 700 12px 'JetBrains Mono', monospace; fill: #fbbf24; }
-          .feedback { font: 700 10px 'Inter', system-ui, sans-serif; fill: #f87171; letter-spacing: 0.08em; }
-          .feedback-good { font: 700 10px 'Inter', system-ui, sans-serif; fill: #34d399; letter-spacing: 0.08em; }
+          .lbl { font: 600 12px 'Inter', system-ui, sans-serif; fill: #1a1d2e; }
+          .sub { font: 400 11px 'Inter', system-ui, sans-serif; fill: #8c93a8; }
+          .tag { font: 500 10px 'Inter', system-ui, sans-serif; fill: #5a6178; letter-spacing: 0.06em; }
+          .time { font: 700 12px 'JetBrains Mono', monospace; fill: #d97706; }
+          .feedback { font: 700 10px 'Inter', system-ui, sans-serif; fill: #ef4444; letter-spacing: 0.08em; }
+          .feedback-good { font: 700 10px 'Inter', system-ui, sans-serif; fill: #22c55e; letter-spacing: 0.08em; }
         </style>
       </defs>
 
@@ -318,49 +318,49 @@
       <!-- ============ ATLAS row ============ -->
       <g transform="translate(0, 60)">
         <rect x="0" y="0" width="1040" height="140" rx="10" fill="url(#atlasBg)" stroke="rgba(248,113,113,0.3)" stroke-width="1"/>
-        <rect x="14" y="14" width="84" height="22" rx="11" fill="#f87171"/>
-        <text x="56" y="29" text-anchor="middle" class="tag" fill="#0f172a" font-weight="700">ATLAS</text>
+        <rect x="14" y="14" width="84" height="22" rx="11" fill="#ef4444"/>
+        <text x="56" y="29" text-anchor="middle" class="tag" fill="#f7f8fc" font-weight="700">ATLAS</text>
         <text x="110" y="29" class="sub">매핑 *후* 통계 — 한 사이클이 길다</text>
 
         <!-- Boxes (sequence) -->
         <g transform="translate(20, 56)">
-          <rect width="140" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <rect width="140" height="40" rx="6" fill="#ffffff" stroke="#94a3b8"/>
           <text x="70" y="18" text-anchor="middle" class="lbl" font-size="11">Athena 검색</text>
           <text x="70" y="32" text-anchor="middle" class="sub">359개 후보 중 선택</text>
         </g>
-        <line x1="160" y1="76" x2="180" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+        <line x1="160" y1="76" x2="180" y2="76" stroke="#8c93a8" stroke-width="1" marker-end="url(#arr)"/>
 
         <g transform="translate(186, 56)">
-          <rect width="140" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <rect width="140" height="40" rx="6" fill="#ffffff" stroke="#94a3b8"/>
           <text x="70" y="18" text-anchor="middle" class="lbl" font-size="11">Concept Set 구성</text>
           <text x="70" y="32" text-anchor="middle" class="sub">테이블 add/remove</text>
         </g>
-        <line x1="326" y1="76" x2="346" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+        <line x1="326" y1="76" x2="346" y2="76" stroke="#8c93a8" stroke-width="1" marker-end="url(#arr)"/>
 
         <g transform="translate(352, 56)">
-          <rect width="150" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <rect width="150" height="40" rx="6" fill="#ffffff" stroke="#94a3b8"/>
           <text x="75" y="18" text-anchor="middle" class="lbl" font-size="11">Cohort Definition</text>
           <text x="75" y="32" text-anchor="middle" class="sub">criteria 작성</text>
         </g>
-        <line x1="502" y1="76" x2="522" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+        <line x1="502" y1="76" x2="522" y2="76" stroke="#8c93a8" stroke-width="1" marker-end="url(#arr)"/>
 
         <g transform="translate(528, 56)">
-          <rect width="160" height="40" rx="6" fill="#312e81" stroke="#a78bfa" stroke-dasharray="3 2"/>
+          <rect width="160" height="40" rx="6" fill="#312e81" stroke="#1d4ed8" stroke-dasharray="3 2"/>
           <text x="80" y="18" text-anchor="middle" class="lbl" font-size="11" fill="#c4b5fd">Generate (대기)</text>
           <text x="80" y="32" text-anchor="middle" class="time" font-size="10">⏱ 2 ~ 30 min</text>
         </g>
-        <line x1="688" y1="76" x2="708" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+        <line x1="688" y1="76" x2="708" y2="76" stroke="#8c93a8" stroke-width="1" marker-end="url(#arr)"/>
 
         <!-- Feedback bolt -->
         <g transform="translate(714, 56)">
-          <rect width="140" height="40" rx="6" fill="#7f1d1d" stroke="#f87171"/>
+          <rect width="140" height="40" rx="6" fill="#7f1d1d" stroke="#ef4444"/>
           <text x="70" y="18" text-anchor="middle" class="feedback">⚡ FIRST FEEDBACK</text>
           <text x="70" y="32" text-anchor="middle" class="sub" fill="#fca5a5">cohort 크기 보임</text>
         </g>
-        <line x1="854" y1="76" x2="874" y2="76" stroke="#94a3b8" stroke-width="1" marker-end="url(#arr)"/>
+        <line x1="854" y1="76" x2="874" y2="76" stroke="#8c93a8" stroke-width="1" marker-end="url(#arr)"/>
 
         <g transform="translate(880, 56)">
-          <rect width="150" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <rect width="150" height="40" rx="6" fill="#ffffff" stroke="#94a3b8"/>
           <text x="75" y="18" text-anchor="middle" class="lbl" font-size="11">조정 → 재생성</text>
           <text x="75" y="32" text-anchor="middle" class="sub">반복 (각 +수 분)</text>
         </g>
@@ -372,72 +372,72 @@
       <!-- ============ concept-viz row ============ -->
       <g transform="translate(0, 230)">
         <rect x="0" y="0" width="1040" height="140" rx="10" fill="url(#vizBg)" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
-        <rect x="14" y="14" width="120" height="22" rx="11" fill="#34d399"/>
-        <text x="74" y="29" text-anchor="middle" class="tag" fill="#0f172a" font-weight="700">concept-viz</text>
+        <rect x="14" y="14" width="120" height="22" rx="11" fill="#22c55e"/>
+        <text x="74" y="29" text-anchor="middle" class="tag" fill="#f7f8fc" font-weight="700">concept-viz</text>
         <text x="146" y="29" class="sub">매핑 *동안* 실시간 — 사이클이 짧다</text>
 
         <!-- Boxes (compact, with feedback bolts between every step) -->
         <g transform="translate(20, 56)">
-          <rect width="140" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <rect width="140" height="40" rx="6" fill="#ffffff" stroke="#94a3b8"/>
           <text x="70" y="18" text-anchor="middle" class="lbl" font-size="11">AI 후보 본다</text>
           <text x="70" y="32" text-anchor="middle" class="sub">Top-N + confidence</text>
         </g>
 
         <!-- bolt 1 -->
         <g transform="translate(168, 56)">
-          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
-          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#34d399">⚡</text>
+          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#22c55e"/>
+          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#22c55e">⚡</text>
         </g>
 
         <g transform="translate(210, 56)">
-          <rect width="160" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <rect width="160" height="40" rx="6" fill="#ffffff" stroke="#94a3b8"/>
           <text x="80" y="18" text-anchor="middle" class="lbl" font-size="11">Tree에서 hover/click</text>
           <text x="80" y="32" text-anchor="middle" class="sub">계층·형제 탐색</text>
         </g>
 
         <!-- bolt 2 -->
         <g transform="translate(378, 56)">
-          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
-          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#34d399">⚡</text>
+          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#22c55e"/>
+          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#22c55e">⚡</text>
         </g>
 
         <g transform="translate(420, 56)">
-          <rect width="160" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <rect width="160" height="40" rx="6" fill="#ffffff" stroke="#94a3b8"/>
           <text x="80" y="18" text-anchor="middle" class="lbl" font-size="11">concept 추가/교체</text>
           <text x="80" y="32" text-anchor="middle" class="sub">drag/lasso/click</text>
         </g>
 
         <!-- bolt 3 -->
         <g transform="translate(588, 56)">
-          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
-          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#34d399">⚡</text>
+          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#22c55e"/>
+          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#22c55e">⚡</text>
         </g>
 
         <g transform="translate(630, 56)">
-          <rect width="170" height="40" rx="6" fill="#1e293b" stroke="#475569"/>
+          <rect width="170" height="40" rx="6" fill="#ffffff" stroke="#94a3b8"/>
           <text x="85" y="18" text-anchor="middle" class="lbl" font-size="11">funnel 즉시 갱신</text>
           <text x="85" y="32" text-anchor="middle" class="sub">n = … 실시간</text>
         </g>
 
         <!-- bolt 4 -->
         <g transform="translate(808, 56)">
-          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
-          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#34d399">⚡</text>
+          <rect width="34" height="40" rx="6" fill="#064e3b" stroke="#22c55e"/>
+          <text x="17" y="26" text-anchor="middle" font-size="14" fill="#22c55e">⚡</text>
         </g>
 
         <g transform="translate(850, 56)">
-          <rect width="178" height="40" rx="6" fill="#064e3b" stroke="#34d399"/>
+          <rect width="178" height="40" rx="6" fill="#064e3b" stroke="#22c55e"/>
           <text x="89" y="18" text-anchor="middle" class="feedback-good">⚡ EVERY ACTION</text>
           <text x="89" y="32" text-anchor="middle" class="sub" fill="#86efac">사이클당 ~수백 ms</text>
         </g>
 
         <!-- Total time -->
-        <text x="520" y="125" text-anchor="middle" class="time" font-size="13" fill="#34d399">▶ 한 의문 검증 사이클: ~ 1 초 미만</text>
+        <text x="520" y="125" text-anchor="middle" class="time" font-size="13" fill="#22c55e">▶ 한 의문 검증 사이클: ~ 1 초 미만</text>
       </g>
 
       <!-- Center divider arrow showing scale -->
       <g transform="translate(520, 200)">
-        <text text-anchor="middle" class="time" font-size="11" fill="#cbd5e1">vs</text>
+        <text text-anchor="middle" class="time" font-size="11" fill="#5a6178">vs</text>
       </g>
     </svg>
     <div class="timeline-caption">

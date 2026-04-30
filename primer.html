@@ -9,21 +9,21 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-main: #0f172a;
-    --bg-panel: #1e293b;
-    --bg-subtle: #111827;
-    --bg-read: #151e33;
-    --text-primary: #e8ecf2;
-    --text-body: #cbd5e1;
-    --text-secondary: #94a3b8;
-    --text-dim: #64748b;
-    --border: #2d3a52;
-    --border-strong: #475569;
-    --accent-purple: #a78bfa;
-    --accent-gold: #fbbf24;
-    --accent-green: #34d399;
-    --accent-blue: #60a5fa;
-    --accent-red: #f87171;
+    --bg-main: #f7f8fc;
+    --bg-panel: #ffffff;
+    --bg-subtle: #f1f5f9;
+    --bg-read: #f8fafc;
+    --text-primary: #1a1d2e;
+    --text-body: #5a6178;
+    --text-secondary: #8c93a8;
+    --text-dim: #8c93a8;
+    --border: #e2e6f0;
+    --border-strong: #94a3b8;
+    --accent-purple: #1d4ed8;
+    --accent-gold: #d97706;
+    --accent-green: #22c55e;
+    --accent-blue: #3b82f6;
+    --accent-red: #ef4444;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,7 +32,7 @@
   body {
     background: var(--bg-main);
     color: var(--text-body);
-    font-family: 'Inter', 'Noto Serif KR', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 17px;
     line-height: 1.78;
     letter-spacing: -0.005em;
@@ -40,13 +40,13 @@
     overflow-wrap: break-word;
   }
 
-  a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(167, 139, 250, 0.4); }
+  a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(59, 130, 246, 0.35); }
   a:hover { border-bottom-color: var(--accent-purple); }
 
   /* Top nav */
   nav.top {
     position: sticky; top: 0; z-index: 50;
-    background: rgba(15, 23, 42, 0.92);
+    background: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
     padding: 12px 24px;
@@ -164,7 +164,7 @@
 
   /* Scenario box — sets the stage */
   .scenario {
-    background: linear-gradient(135deg, var(--bg-read), rgba(167, 139, 250, 0.04));
+    background: linear-gradient(135deg, var(--bg-read), rgba(59, 130, 246, 0.04));
     border: 1px solid var(--border);
     border-left: 4px solid var(--accent-purple);
     border-radius: 12px;
@@ -332,9 +332,9 @@
     font-weight: 500;
     background: rgba(167, 139, 250, 0.12);
     color: var(--accent-purple);
-    border: 1px solid rgba(167, 139, 250, 0.3);
+    border: 1px solid rgba(59, 130, 246, 0.25);
     border-radius: 6px;
-    border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+    border-bottom: 1px solid rgba(59, 130, 246, 0.25);
   }
   .feature.gold .demo-inline { background: rgba(251, 191, 36, 0.1); color: var(--accent-gold); border-color: rgba(251, 191, 36, 0.3); }
   .feature.green .demo-inline { background: rgba(52, 211, 153, 0.1); color: var(--accent-green); border-color: rgba(52, 211, 153, 0.3); }
@@ -369,7 +369,7 @@
     padding: 32px;
     border-radius: 14px;
     background: linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(251, 191, 36, 0.08));
-    border: 1px solid rgba(167, 139, 250, 0.3);
+    border: 1px solid rgba(59, 130, 246, 0.25);
     text-align: center;
   }
   .end-cta h3 { border-bottom: none; margin-top: 0; }
@@ -381,7 +381,7 @@
     font-weight: 500;
     border-bottom: none;
   }
-  .end-cta .btn.primary { background: var(--accent-purple); color: #0f172a; border-bottom: none; }
+  .end-cta .btn.primary { background: var(--accent-purple); color: #f7f8fc; border-bottom: none; }
   .end-cta .btn.secondary { background: var(--bg-panel); color: var(--text-primary); border: 1px solid var(--border-strong); }
 
   /* Visual abstract embed */

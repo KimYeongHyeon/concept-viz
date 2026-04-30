@@ -9,25 +9,25 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-main: #0f172a; --bg-panel: #1e293b; --bg-subtle: #111827; --bg-read: #151e33;
-    --text-primary: #e8ecf2; --text-body: #cbd5e1; --text-secondary: #94a3b8;
-    --text-dim: #64748b; --border: #2d3a52; --border-strong: #475569;
-    --accent-purple: #a78bfa; --accent-gold: #fbbf24;
-    --accent-green: #34d399; --accent-red: #f87171; --accent-blue: #60a5fa;
+    --bg-main: #f7f8fc; --bg-panel: #ffffff; --bg-subtle: #f1f5f9; --bg-read: #f8fafc;
+    --text-primary: #1a1d2e; --text-body: #5a6178; --text-secondary: #8c93a8;
+    --text-dim: #8c93a8; --border: #e2e6f0; --border-strong: #94a3b8;
+    --accent-purple: #1d4ed8; --accent-gold: #d97706;
+    --accent-green: #22c55e; --accent-red: #ef4444; --accent-blue: #3b82f6;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   body {
     background: var(--bg-main); color: var(--text-body);
-    font-family: 'Inter', 'Noto Serif KR', -apple-system, sans-serif;
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
     font-size: 16px; line-height: 1.75; word-break: keep-all; overflow-wrap: break-word;
   }
-  a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(167, 139, 250, 0.4); }
+  a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(59, 130, 246, 0.35); }
   a:hover { border-bottom-color: var(--accent-purple); }
 
   nav.top {
     position: sticky; top: 0; z-index: 50;
-    background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(10px); box-shadow: 0 1px 3px rgba(26, 29, 46, 0.04);
     border-bottom: 1px solid var(--border);
     padding: 12px 24px; display: flex; align-items: center; gap: 18px; font-size: 13px;
   }
@@ -152,8 +152,8 @@
   .summary {
     margin-top: 72px; padding: 36px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(167, 139, 250, 0.08), rgba(251, 191, 36, 0.06));
-    border: 1px solid rgba(167, 139, 250, 0.3);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(251, 191, 36, 0.06));
+    border: 1px solid rgba(59, 130, 246, 0.25);
   }
   .summary h2 {
     font-size: 22px; font-weight: 700;
@@ -168,7 +168,7 @@
     font-size: 14px; font-weight: 500;
     border-bottom: none;
   }
-  .summary .btn.primary { background: var(--accent-purple); color: #0f172a; }
+  .summary .btn.primary { background: var(--accent-purple); color: #f7f8fc; }
   .summary .btn.secondary { background: var(--bg-panel); color: var(--text-primary); border: 1px solid var(--border-strong); }
 
   hr.divider {

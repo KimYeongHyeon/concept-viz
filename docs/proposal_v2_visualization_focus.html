@@ -9,21 +9,21 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-main: #0f172a; --bg-panel: #1e293b; --bg-subtle: #111827;
-    --text-primary: #e8ecf2; --text-body: #cbd5e1; --text-secondary: #94a3b8;
-    --text-dim: #64748b; --border: #2d3a52; --accent-purple: #a78bfa;
-    --accent-gold: #fbbf24; --accent-green: #34d399;
+    --bg-main: #f7f8fc; --bg-panel: #ffffff; --bg-subtle: #f1f5f9;
+    --text-primary: #1a1d2e; --text-body: #5a6178; --text-secondary: #8c93a8;
+    --text-dim: #8c93a8; --border: #e2e6f0; --accent-purple: #1d4ed8;
+    --accent-gold: #d97706; --accent-green: #22c55e;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     background: var(--bg-main); color: var(--text-body);
-    font-family: 'Inter', 'Noto Serif KR', -apple-system, sans-serif;
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
     font-size: 16px; line-height: 1.78; word-break: keep-all;
     overflow-wrap: break-word;
   }
   nav.top {
     position: sticky; top: 0; z-index: 50;
-    background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(10px); box-shadow: 0 1px 3px rgba(26, 29, 46, 0.04);
     border-bottom: 1px solid var(--border);
     padding: 12px 24px; display: flex; align-items: center; gap: 18px;
     font-size: 13px;
@@ -57,7 +57,7 @@
   }
   .reader h5, .reader h6 { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin: 18px 0 6px; }
   .reader p { margin: 14px 0; color: var(--text-body); }
-  .reader a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(167, 139, 250, 0.4); }
+  .reader a { color: var(--accent-purple); text-decoration: none; border-bottom: 1px dashed rgba(59, 130, 246, 0.35); }
   .reader a:hover { border-bottom-color: var(--accent-purple); }
   .reader ul, .reader ol { margin: 14px 0 14px 28px; }
   .reader li { margin: 6px 0; color: var(--text-body); }
@@ -82,7 +82,7 @@
   .reader blockquote {
     border-left: 3px solid var(--accent-purple);
     padding: 10px 20px; margin: 18px 0;
-    color: var(--text-secondary); background: rgba(167, 139, 250, 0.04);
+    color: var(--text-secondary); background: rgba(59, 130, 246, 0.04);
     border-radius: 4px;
   }
   .reader blockquote p { margin: 6px 0; }
